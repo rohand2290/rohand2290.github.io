@@ -1,5 +1,5 @@
 import { Euler, Matrix4, Quaternion, Vector3 } from 'three';
-import { rosePine, palette, propColors } from '../../palette';
+import { solarized, palette, propColors } from '../../palette';
 import type { PropSpec } from '../../content/types';
 import { ISO_RIGHT } from '../camera';
 import type { VoxelBatch } from '../voxels';
@@ -269,7 +269,7 @@ function graphSculpture(ctx: PropContext, p: Vector3) {
   for (const [a, b] of GRAPH_EDGES) {
     const pa = nodes[a].pos.clone().setY(p.y + 0.12);
     const pb = nodes[b].pos.clone().setY(p.y + 0.12);
-    solid.plank(pa, pb, 0.16, 0.12, rosePine.rose);
+    solid.plank(pa, pb, 0.16, 0.12, solarized.rose);
   }
   for (const n of nodes) {
     solid.standing(n.pos.x, p.y, n.pos.z, n.s * 0.55, 0.2, n.s * 0.55, propColors.trunk);
@@ -382,7 +382,7 @@ function lighthouse(ctx: PropContext, p: Vector3) {
   // Door at the foot and a lit window partway up, both on the lit (+z) face.
   const w0 = width(0.05);
   solid.standing(p.x, p.y + plinth, p.z + w0 / 2 + 0.01, 0.36, 0.68, 0.04, frame);
-  solid.standing(p.x, p.y + plinth, p.z + w0 / 2 + 0.03, 0.26, 0.58, 0.04, rosePine.base);
+  solid.standing(p.x, p.y + plinth, p.z + w0 / 2 + 0.03, 0.26, 0.58, 0.04, solarized.base);
   const winY = p.y + plinth + 5.5 * stripeH;
   const wWin = width(0.55);
   solid.box(p.x, winY, p.z + wWin / 2 + 0.01, 0.3, 0.44, 0.04, frame);

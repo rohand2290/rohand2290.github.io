@@ -122,8 +122,8 @@ export class Lightning {
     this.bolt.setAttribute('viewBox', `0 0 ${w} ${h}`);
     const d = points.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
     this.bolt.innerHTML = d
-      ? `<polyline points="${d}" fill="none" stroke="#908caa" stroke-width="9" stroke-linejoin="miter" stroke-linecap="square"/>
-         <polyline points="${d}" fill="none" stroke="#e0def4" stroke-width="4" stroke-linejoin="miter" stroke-linecap="square"/>`
+      ? `<polyline points="${d}" fill="none" stroke="#839496" stroke-width="9" stroke-linejoin="miter" stroke-linecap="square"/>
+         <polyline points="${d}" fill="none" stroke="#fdf6e3" stroke-width="4" stroke-linejoin="miter" stroke-linecap="square"/>`
       : '';
   }
 }
