@@ -1,5 +1,5 @@
 import { BoxGeometry, CircleGeometry, Group, Mesh, MeshBasicMaterial, Object3D } from 'three';
-import { palette, SHADOW_FACTOR } from '../palette';
+import { rosePine, palette, SHADOW_FACTOR } from '../palette';
 import { worldUniforms } from '../scene/voxels';
 import type { Pose } from './animation';
 
@@ -11,13 +11,13 @@ import type { Pose } from './animation';
 
 export const characterColors = {
   coat: palette.warmLight,
-  coatShade: '#d9ab52',
+  coatShade: rosePine.rose,
   skin: palette.buttonPrimary,
   pants: palette.dirtShadow,
   boots: palette.bark,
   eyes: palette.ink,
   canopy: palette.brick,
-  canopyRim: '#7f4838',
+  canopyRim: rosePine.love,
   handle: palette.bark,
 };
 

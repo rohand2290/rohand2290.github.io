@@ -40,7 +40,7 @@ describe('NavGrid', () => {
   });
 
   it('finds a path around a prop', () => {
-    const g = new NavGrid([island([{ type: 'brick-building', at: [0, 0] }])]);
+    const g = new NavGrid([island([{ type: 'lab-building', at: [0, 0] }])]);
     const path = findGridPath(g, { island: 'test', i: 0, j: 3 }, { island: 'test', i: 5, j: 3 });
     expect(path).not.toBeNull();
     expect(path!.at(-1)).toEqual({ island: 'test', i: 5, j: 3 });

@@ -24,15 +24,15 @@ const BODY_HALF = 0.4;
 function propFootprint(p: PropSpec): [number, number] | null {
   switch (p.type) {
     case 'brick-building':
-      return [3.1, 3.1];
+      return [5.9, 2.9];
     case 'lab-building':
-      return [2.6, 2.6];
+      return [3.6, 3.8];
     case 'tree':
       return [0.3, 0.3];
     case 'helix':
       return [0.9, 0.9];
     case 'lighthouse':
-      return [1.7, 1.7];
+      return [3, 3];
     case 'arcade-cabinet': {
       const h = Number(p.h ?? 3);
       return h > 3 ? [1.5, 1.4] : [1.25, 1.15];

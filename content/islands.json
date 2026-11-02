@@ -284,10 +284,10 @@
     }
   ],
   "spawn": {
-    "island": "grove",
+    "island": "campus",
     "at": [
-      0,
-      5
+      3,
+      1
     ]
   }
 }

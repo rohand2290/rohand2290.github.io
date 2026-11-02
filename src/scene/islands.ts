@@ -1,12 +1,12 @@
-import { Box3, Vector3 } from 'three';
-import { palette } from '../palette';
+import { Box3, Matrix4, Quaternion, Vector3, Euler } from 'three';
+import { palette, propColors } from '../palette';
 import type { IslandSpec } from '../content/types';
 import type { VoxelBatch } from './voxels';
 import type { LightRig } from '../weather/lights';
 import { buildProp } from './props';
+import { buildTerrain, TERRAIN_DEPTH, type TerrainBatch } from './terrain';
 
-export const ISLAND_DEPTH = 3;
-const GRASS = 0.06;
+export const ISLAND_DEPTH = TERRAIN_DEPTH;
 
 export interface IslandRecord {
   spec: IslandSpec;
@@ -41,18 +41,34 @@ export function buildIsland(
   solid: VoxelBatch,
   emissive: VoxelBatch,
   lights: LightRig,
+  terrain: TerrainBatch,
+  /** World-space angles (atan2(dz, dx)) toward the islands this one bridges to. */
+  bridgeAngles: number[] = [],
 ): IslandRecord {
   const [x, y, z] = spec.position;
   const s = spec.footprint;
   const top = new Vector3(x, y, z);
 
-  // Body: the voxel block reads as one solid slab, so it is drawn as a single scaled cube
-  // whose faces carry the lit / shadow dirt colors. Grid lines never appear in the build.
-  solid.box(x, y - GRASS - (ISLAND_DEPTH - GRASS) / 2, z, s, ISLAND_DEPTH - GRASS, s, palette.dirtLit);
-  solid.box(x, y - GRASS / 2, z, s, GRASS, s, palette.grassWet);
+  // Body: a faceted low-poly chunk of land with an irregular rim and a rocky underside.
+  const rand = rng(hash(spec.id));
+  const { maxRim, rimPoints } = buildTerrain(terrain, { center: top, footprint: s, bridgeAngles, rand });
+
+  // Rocks: a few tumbled stones sitting on the rim, mostly up on the back knolls.
+  const rockCount = 3 + Math.floor(rand() * 4);
+  const m = new Matrix4();
+  const q = new Quaternion();
+  const e = new Euler();
+  for (let i = 0; i < rockCount; i++) {
+    const r = rimPoints[Math.floor(rand() * rimPoints.length)];
+    if (r.knoll < 0.08 && rand() < 0.7) continue;
+    const size = 0.25 + rand() * 0.35;
+    q.setFromEuler(e.set((rand() - 0.5) * 0.6, rand() * Math.PI, (rand() - 0.5) * 0.6));
+    const pos = r.p.clone().add(new Vector3(0, size * 0.3, 0));
+    m.compose(pos, q, new Vector3(size * (1 + rand() * 0.5), size * 0.75, size));
+    solid.push(m.clone(), propColors.stone);
+  }
 
   // Grass specks: little flat voxels scattered on the wet grass.
-  const rand = rng(hash(spec.id));
   const specks = Math.round((s * s) / 7);
   for (let i = 0; i < specks; i++) {
     const sx = x + (rand() - 0.5) * (s - 1);
@@ -66,7 +82,7 @@ export function buildIsland(
 
   lights.addSplashArea(top, s);
 
-  const half = s / 2;
+  const half = s / 2 + maxRim;
   return {
     spec,
     top,

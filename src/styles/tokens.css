@@ -1,29 +1,29 @@
 :root {
   /* World */
-  --sky-storm: #5b666c;
-  --sky-clear: #616c72;
-  --cloud-near: #737e83;
-  --cloud-far: #687378;
-  --rain: #d3dbde;
-  --flash: #e9eef2;
-  --grass-wet: #7f9469;
-  --grass-speck: #93a77f;
-  --dirt-lit: #6e5140;
-  --dirt-shadow: #553e31;
-  --bark: #3f3027;
-  --rope-plank: #7a604b;
-  --brick: #9a5a46;
-  --puddle: #6f8a8e;
-  --warm-light: #f6c86a;
-  --crt-screen: #8fc7a4;
+  --sky-storm: #403d52;
+  --sky-clear: #524f67;
+  --cloud-near: #524f67;
+  --cloud-far: #26233a;
+  --rain: #908caa;
+  --flash: #e0def4;
+  --grass-wet: #9ccfd8;
+  --grass-speck: #31748f;
+  --dirt-lit: #26233a;
+  --dirt-shadow: #1f1d2e;
+  --bark: #191724;
+  --rope-plank: #ebbcba;
+  --brick: #eb6f92;
+  --puddle: #31748f;
+  --warm-light: #f6c177;
+  --crt-screen: #9ccfd8;
 
   /* Interface */
-  --paper: #f3ead8;
-  --ink: #26221f;
-  --plate: #2f2a26;
-  --note-frame: #5a3f36;
-  --button-primary: #e4c88f;
-  --muted-ink: #5a4f46;
+  --paper: #ebbcba;
+  --ink: #191724;
+  --plate: #26233a;
+  --note-frame: #403d52;
+  --button-primary: #f6c177;
+  --muted-ink: #524f67;
 
   /* Type */
   --font-pixel: 'Pixelify Sans', ui-sans-serif, system-ui, sans-serif;

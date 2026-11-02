@@ -18,7 +18,7 @@ import {
   SpriteMaterial,
   Vector3,
 } from 'three';
-import { palette, propColors } from '../palette';
+import { rosePine, palette, propColors } from '../palette';
 import { ISO_RIGHT } from '../scene/camera';
 import { shadedCube, solidMaterial, withFlash } from '../scene/voxels';
 
@@ -187,7 +187,7 @@ export class LightRig {
     geo.rotateZ(Math.PI / 2); // apex at the lamp, opening along +X
     const mesh = new Mesh(
       geo,
-      new MeshBasicMaterial({ color: '#d8cf9e', transparent: true, opacity: 0.2, depthWrite: false, side: DoubleSide }),
+      new MeshBasicMaterial({ color: rosePine.gold, transparent: true, opacity: 0.2, depthWrite: false, side: DoubleSide }),
     );
     mesh.renderOrder = 4;
     const pivot = new Group();

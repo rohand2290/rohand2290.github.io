@@ -70,6 +70,14 @@ export function plankMatrix(a: Vector3, b: Vector3, width: number, thickness: nu
   return out;
 }
 
+/** Matrix for a square-section beam from a to b. Shared by `beam` and the bridge dip. */
+export function beamMatrix(a: Vector3, b: Vector3, thickness: number, out: Matrix4): Matrix4 {
+  tmpP.copy(a).add(b).multiplyScalar(0.5);
+  tmpQ.setFromUnitVectors(UP, Y.copy(b).sub(a).normalize());
+  tmpS.set(thickness, a.distanceTo(b), thickness);
+  return out.compose(tmpP, tmpQ, tmpS);
+}
+
 /** Collects boxes for one material, then builds a single InstancedMesh (one draw call). */
 export class VoxelBatch {
   readonly matrices: Matrix4[] = [];
@@ -90,11 +98,21 @@ export class VoxelBatch {
 
   /** A square-section beam from a to b (tree branches, graph edges). */
   beam(a: Vector3, b: Vector3, thickness: number, color: string | Color): number {
-    const len = a.distanceTo(b);
-    tmpP.copy(a).add(b).multiplyScalar(0.5);
-    tmpQ.setFromUnitVectors(UP, Y.copy(b).sub(a).normalize());
-    tmpS.set(thickness, len, thickness);
-    return this.push(new Matrix4().compose(tmpP, tmpQ, tmpS), color);
+    return this.push(beamMatrix(a, b, thickness, new Matrix4()), color);
+  }
+
+  /**
+   * A regular octagonal slab, W across its flats, h tall, bottom at y. Built from four boxes:
+   * two axis-aligned strips and two strips turned 45°, each exactly one face wide.
+   */
+  octagon(x: number, y: number, z: number, W: number, h: number, color: string | Color) {
+    const a = W * (Math.SQRT2 - 1); // face length
+    this.standing(x, y, z, W, h, a, color);
+    this.standing(x, y, z, a, h, W, color);
+    for (const turn of [Math.PI / 4, -Math.PI / 4]) {
+      tmpQ.setFromAxisAngle(UP, turn);
+      this.push(new Matrix4().compose(tmpP.set(x, y + h / 2, z), tmpQ, tmpS.set(a, h, W)), color);
+    }
   }
 
   /** A plank lying along a→b, `width` wide horizontally and `thickness` tall (bridges). */

@@ -33,7 +33,7 @@ function shape(p: PropSpec): { hw: number; hd: number; h: number } {
     case 'signpost':
       return { hw: 0.45, hd: 0.15, h: 1.7 };
     case 'lab-building':
-      return { hw: 1.3, hd: 1.3, h: 2.6 };
+      return { hw: 1.8, hd: 1.9, h: 2.6 };
     case 'helix':
       return { hw: 0.7, hd: 0.7, h: 5 };
     case 'arcade-cabinet': {

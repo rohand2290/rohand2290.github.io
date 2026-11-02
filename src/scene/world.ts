@@ -4,7 +4,12 @@ import { LightRig } from '../weather/lights';
 import { Rain, type RainMode } from '../weather/rain';
 import { IsoCamera, ISO_RIGHT, ISO_UP, screenPlaneBounds, type ScreenRect } from './camera';
 import { BridgeDip, buildBridges, type BridgeRecord } from './bridges';
+import { Gulls } from './gulls';
+import { PuddleFish } from './fish';
+import { StepCat } from './cat';
+import { ROYCE_CAT_SEAT } from './props';
 import { buildIsland, type IslandRecord } from './islands';
+import { TerrainBatch } from './terrain';
 import { emissiveMaterial, shadedCube, solidMaterial, VoxelBatch, worldUniforms } from './voxels';
 
 // Work in sRGB numbers end to end so palette hexes render exactly as specified.
@@ -73,8 +78,16 @@ export class World {
 
     const solid = new VoxelBatch();
     const emissive = new VoxelBatch();
+    const terrain = new TerrainBatch();
+    const byId = new Map(opts.spec.islands.map((s) => [s.id, s]));
     for (const spec of opts.spec.islands) {
-      this.islands.set(spec.id, buildIsland(spec, solid, emissive, this.lights));
+      // Keep the rim low where bridges land so the planks meet the grass cleanly.
+      const bridgeAngles = opts.spec.bridges.flatMap((b) => {
+        const other = b.from === spec.id ? byId.get(b.to) : b.to === spec.id ? byId.get(b.from) : undefined;
+        if (!other) return [];
+        return [Math.atan2(other.position[2] - spec.position[2], other.position[0] - spec.position[0])];
+      });
+      this.islands.set(spec.id, buildIsland(spec, solid, emissive, this.lights, terrain, bridgeAngles));
     }
     this.bridges = buildBridges(opts.spec.bridges, new Map(opts.spec.islands.map((s) => [s.id, s])), solid);
 
@@ -82,7 +95,31 @@ export class World {
     this.bridgeDip = new BridgeDip(this.bridges, solidMesh);
     const emissiveMesh = emissive.build(shadedCube(false), emissiveMaterial(), true);
     this.lights.finalize(emissiveMesh);
-    this.scene.add(solidMesh, emissiveMesh, this.lights.group);
+    this.scene.add(terrain.build(), solidMesh, emissiveMesh, this.lights.group);
+
+    // Ambient creatures: gulls circling each lighthouse lamp (about 5.9 above the island top),
+    // a fish leaping in every puddle, and a cat on the Royce Hall steps.
+    let fishSeed = 0;
+    for (const spec of opts.spec.islands) {
+      const [x, y, z] = spec.position;
+      for (const prop of spec.props) {
+        const px = x + prop.at[0], pz = z + prop.at[1];
+        if (prop.type === 'lighthouse') {
+          const gulls = new Gulls(new Vector3(px, y + 5.9, pz));
+          this.scene.add(gulls.group);
+          this.addUpdater((t) => gulls.update(t, this.reduced));
+        } else if (prop.type === 'puddle') {
+          const fish = new PuddleFish(new Vector3(px, y + 0.012, pz), Number(prop.r ?? 1), this.lights, fishSeed++);
+          this.scene.add(fish.group);
+          this.addUpdater((t) => fish.update(t, this.reduced));
+        } else if (prop.type === 'brick-building') {
+          const [cx, cy, cz] = ROYCE_CAT_SEAT;
+          const cat = new StepCat(new Vector3(px + cx, y + cy, pz + cz), Math.PI / 4);
+          this.scene.add(cat.group);
+          this.addUpdater((t, dt) => cat.update(t, dt, this.reduced));
+        }
+      }
+    }
 
     this.rain = new Rain(opts.isPhone);
     this.scene.add(...this.rain.meshes);

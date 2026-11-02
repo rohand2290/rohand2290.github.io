@@ -68,9 +68,9 @@ export function bridgePath(spec: BridgeSpec, from: IslandSpec, to: IslandSpec): 
 /** Plank layout along a bridge: each plank spans [t0, t1] of the curve. */
 export function plankLayout(path: BridgePath): { t0: number; t1: number }[] {
   const w = path.spec.weight;
-  // Heavier bridges are continuous; weight 1 stays a dotted run of planks.
+  // Weight 1 is a gappy run of boards; heavier bridges are laid closer, with a thin gap between boards.
   const step = w === 1 ? 0.7 : 0.5;
-  const plankLen = w === 1 ? 0.36 : step * 1.04;
+  const plankLen = w === 1 ? 0.36 : step * 0.84;
   const n = Math.max(2, Math.floor(path.length / step));
   const out: { t0: number; t1: number }[] = [];
   for (let i = 0; i < n; i++) {
