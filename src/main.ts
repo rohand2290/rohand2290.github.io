@@ -86,6 +86,7 @@ function renderSkip() {
 renderSkip();
 skipBtn.addEventListener('click', () => {
   state.skipWalking = !state.skipWalking;
+  sound.play('click');
   try {
     localStorage.setItem('skip-walking', state.skipWalking ? 'on' : 'off');
   } catch {
@@ -157,9 +158,13 @@ function openIsland(id: string, viaKeyboard = false, itemId?: string | null, syn
   if (!island || !items.length) return;
   const item = (itemId && items.find((i) => i.id === itemId)) || (state.island === id && state.item && items.find((i) => i.id === state.item)) || items[0];
   const changed = state.island !== id;
+  const wasOpen = note.open;
+  const itemChanged = state.item !== item.id;
   state.island = id;
   state.item = item.id;
   note.show(item, items, island.name);
+  if (!wasOpen) sound.play('noteOpen');
+  else if (changed || itemChanged) sound.play('notePick');
   nav.setActive(id);
   labels.setActive(id);
   world?.setActive(id);
@@ -179,6 +184,7 @@ function closeNote() {
   const prev = state.island;
   player?.controller.stopReading();
   if (panel.open) closePanel();
+  if (note.open) sound.play('noteClose');
   note.hide();
   state.island = null;
   state.item = null;
@@ -195,10 +201,12 @@ function readNote() {
   if (!item) return;
   pushRoute(state.island, item.id);
   state.pushedPanel = true;
+  sound.play('panelOpen');
   panel.show(item);
 }
 
 function hidePanel() {
+  if (panel.open) sound.play('panelClose');
   panel.hide();
   state.pushedPanel = false;
   if (note.open) note.readBtn.focus();
@@ -224,6 +232,7 @@ function applyRoute() {
   }
   if (item && findItem(island, item)) {
     openIsland(island, false, item, false);
+    if (!panel.open) sound.play('panelOpen');
     if (!panel.open || state.item !== item) panel.show(findItem(island, item)!);
   } else {
     if (panel.open) hidePanel();
@@ -386,6 +395,7 @@ function goToIsland(id: string, viaKeyboard: boolean) {
   nav.setActive(id);
   const island = islandById(id);
   if (state.skipWalking) {
+    sound.play('whoosh');
     player.controller.teleport(sign.stand, () => readThing(sign), sign);
     return;
   }
@@ -409,6 +419,7 @@ async function boot() {
     return false;
   });
   player = new Player(world, worldSpec, state.reduced);
+  player.onFootfall = (surface) => sound.play(surface === 'plank' ? 'stepPlank' : surface === 'puddle' ? 'stepPuddle' : 'stepGrass');
   world.onFrame = () => {
     for (const [id, island] of world!.islands) {
       const p = world!.project(island.labelAnchor);

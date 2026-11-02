@@ -7,18 +7,20 @@ const MODES: { id: WeatherMode; label: string }[] = [
   { id: 'clear', label: 'Clear evening' },
 ];
 
-/** "Thunder sound" and "Weather" toggles in the top right. */
+/** "Sound" and "Weather" toggles in the top right. */
 export function initHeader(sound: Sound, onWeather: (mode: WeatherMode) => void) {
   const soundBtn = document.getElementById('sound-toggle') as HTMLButtonElement;
   const weatherBtn = document.getElementById('weather-toggle') as HTMLButtonElement;
 
   const renderSound = () => {
-    soundBtn.textContent = `Thunder sound: ${sound.enabled ? 'on' : 'off'}`;
+    soundBtn.textContent = `Sound: ${sound.enabled ? 'on' : 'off'}`;
     soundBtn.setAttribute('aria-pressed', String(sound.enabled));
   };
   renderSound();
   soundBtn.addEventListener('click', () => {
-    void sound.setEnabled(!sound.enabled);
+    const on = !sound.enabled;
+    // A little rising chime confirms sound is now on.
+    void sound.setEnabled(on).then(() => on && sound.play('soundOn'));
     renderSound();
   });
 
@@ -41,6 +43,7 @@ export function initHeader(sound: Sound, onWeather: (mode: WeatherMode) => void)
   renderWeather();
   weatherBtn.addEventListener('click', () => {
     mode = (mode + 1) % MODES.length;
+    sound.play('click');
     renderWeather();
     onWeather(MODES[mode].id);
   });

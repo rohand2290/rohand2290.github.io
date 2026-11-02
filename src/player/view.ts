@@ -23,6 +23,8 @@ export class Player {
   readonly model = new CharacterModel();
   /** 1 = full animation detail; lowered on struggling phones. */
   detail = 1;
+  /** Called on every footfall, with what the foot landed on (for footstep sounds). */
+  onFootfall: ((surface: 'grass' | 'puddle' | 'plank') => void) | null = null;
   private reduced: boolean;
   private shownYaw: number;
   private modeTime = 0;
@@ -128,9 +130,10 @@ export class Player {
     const wasMoving = c.moving || c.crossingMoving;
     c.update(dt);
     for (const e of this.controller.drainEvents()) {
-      if (e.type === 'footfall' && this.grid.isPuddle(e.island, e.x, e.z)) {
-        this.world.lights.splash(new Vector3(e.x, e.y + 0.03, e.z));
-      }
+      if (e.type !== 'footfall') continue;
+      const puddle = this.grid.isPuddle(e.island, e.x, e.z);
+      if (puddle) this.world.lights.splash(new Vector3(e.x, e.y + 0.03, e.z));
+      this.onFootfall?.(c.crossing ? 'plank' : puddle ? 'puddle' : 'grass');
     }
     // Out on a bridge, the planks dip under the character's weight (not under reduced motion).
     const bt = c.bridgeT;
