@@ -1,0 +1,198 @@
+%-------------------------
+% Resume in Latex
+% Author : Jake Gutierrez
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\input{glyphtounicode}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+\pdfgentounicode=1
+
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    \textbf{\Huge \scshape Rohan Deshpande} \\ \vspace{1pt}
+    \small 610-637-0667 $|$ \href{mailto:rbdeshpande@ucla.edu}{\underline{rbdeshpande@ucla.edu}} $|$
+    \href{https://www.linkedin.com/in/rohan-deshpande-423b36235}{\underline{linkedin.com/in/rohan-deshpande/}} $|$
+    \href{https://github.com/rohand2290/}{\underline{github.com/rohand2290/}} $|$
+    \textbf{US Citizen}
+\end{center}
+
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {University of California, Los Angeles}{Los Angeles, CA}
+      {Bachelor of Science, Mathematics/Computer Science}{Expected: June 2028}
+    \item\small{\textbf{Coursework}: Data Structures/Algorithms, Operating Systems, Computer Organization, Linear Algebra, Probability}\vspace{-5pt}
+  \resumeSubHeadingListEnd
+
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Roche}{June 2026 -- Sep 2026}
+      {Software Engineering Intern}{Santa Clara, CA}
+      \resumeItemListStart
+        \resumeItem{Cut daily database cleanup from \textbf{30 to $<$2 minutes} across \textbf{8} tables by building a Spring Boot/Angular tool}
+        \resumeItem{Automated deployments to \textbf{6} bare-metal clusters by replacing kubectl scripts with Helm/GitHub Actions}
+        \resumeItem{Eliminated long-held DB connections for \textbf{15+} daily jobs by designing a Redis/RabbitMQ worker queue}
+        \resumeItem{Removed separate frontend/backend deployments for \textbf{12+} engineers by packaging services in a Podman pod}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {VetsEZ Inc.}{Sep 2025 -- June 2026}
+      {Software Engineering Intern}{San Diego, CA}
+      \resumeItemListStart
+        \resumeItem{Enabled programmatic VistA access for \textbf{500+} users via \textbf{13+} OAuth-secured Spring/OData endpoints}
+        \resumeItem{Cut latency \textbf{30\%} across \textbf{1,600+} records by redesigning PostgreSQL schemas and caching with Spring Data}
+        \resumeItem{Decreased deployment failures for \textbf{5+} services by automating Helm releases to EKS via GitHub Actions}
+        \resumeItem{Reduced timeouts/access errors across \textbf{300+} API requests/month via KEDA autoscaling and Prometheus}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Drexel University}{July 2025 -- Sep 2025}
+      {Software Engineering Intern}{Philadelphia, PA}
+      \resumeItemListStart
+        \resumeItem{Allowed \textbf{12+} researchers to explore data without manual SQL via a VPS-hosted Next.js/PostgreSQL app}
+        \resumeItem{Cut graph generation from \textbf{30 to 15 minutes} for \textbf{150+} nodes and \textbf{300+} edges via FastAPI and Neo4j}
+        \resumeItem{Unblocked analysis of \textbf{9000+} proteins by cleaning data into Cytoscape-ready CSVs and a Jupyter notebook}
+      \resumeItemListEnd
+
+
+
+  \resumeSubHeadingListEnd
+
+
+%-----------PROJECTS-----------
+\section{Projects}
+    \resumeSubHeadingListStart
+
+      \resumeProjectHeading
+        {\href{https://github.com/rohand2290/proteinlens}{\textbf{ProteinLens}} $|$ \emph{Spring Boot, Kafka, Neo4j, Docker, AWS, Kubernetes}}{}
+        \resumeItemListStart
+          \resumeItem{Validated \textbf{70\%} of detected clusters against known findings on \textbf{50+} node/\textbf{100+} edge PPI graphs using EJML}
+          \resumeItem{Processed \textbf{25+} graph jobs/minute in order via a job-keyed, 3-partition Kafka topic and Spring workers on EKS}
+          \resumeItem{Improved pathway discovery via applying laplacian construction and eigenvector embedding over STRING DB}
+        \resumeItemListEnd
+
+      \resumeProjectHeading
+        {\href{https://github.com/schemaloom}{\textbf{SchemaLoom}} $|$ \emph{TypeScript, Zod, Docker, Hono, LangChain, Gemini}}{}
+        \resumeItemListStart
+          \resumeItem{Converted research/Wikipedia articles into DAG schemas with a \textbf{70\%} pass rate via Gemini/LangChain}
+          \resumeItem{Standardized releases across environments by deploying reproducible Docker images through GitHub Actions}
+          \resumeItem{Caught API failures before release by automating \textbf{10+} endpoint tests with Jest and GitHub Actions}
+        \resumeItemListEnd
+
+      \resumeProjectHeading
+        {\href{https://github.com/rohand2290/cytoscape-data-pipeline}{\textbf{CytoFlow}} $|$ \emph{FastAPI, Java, py4cytoscape, Docker}}{}
+        \resumeItemListStart
+          \resumeItem{Cut Cytoscape SVG processing from \textbf{5 minutes to 30 seconds} via FastAPI/py4cytoscape automation}
+          \resumeItem{Caught SVG-labeling errors before commit across \textbf{16+} runs via Git hooks and \textbf{8+} pytest checks}
+          \resumeItem{Supported \textbf{15} concurrent requests on one server by packaging FastAPI in Docker with Pydantic validation}
+        \resumeItemListEnd
+
+    \resumeSubHeadingListEnd
+
+
+%-----------HONORS-----------
+\section{Honors \& Leadership}
+  \resumeSubHeadingListStart
+    \resumeProjectHeading
+      {\textbf{William F. Sharpe Fellow} $|$ \emph{UCLA Alumni Association, Technology Vertical}}{2026--2027}
+    \resumeProjectHeading
+      {\textbf{LA Hacks, Finance Coordinator} $|$ \emph{Southern California's largest hackathon}}{2025--Present}
+  \resumeSubHeadingListEnd
+
+
+%-----------TECHNICAL SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: Java, Python, TypeScript, SQL, C++, Bash} \\
+     \textbf{Backend/Web}{: Spring Boot, Spring Data (JPA), FastAPI, Next.js, Angular, Hono, REST, OData, OAuth2, OpenAPI} \\
+     \textbf{Data/Messaging}{: PostgreSQL, MySQL, Neo4j, Redis, Kafka, RabbitMQ, gRPC
+} \\
+     \textbf{Infrastructure}{: AWS (EKS), Docker, Kubernetes, Helm, KEDA, Podman, GitHub Actions, Prometheus, Grafana} \\
+     \textbf{Testing/Tools}{: JUnit, Jest, Vitest, pytest, Postman, Git, Maven, Cypress}
+    }}
+ \end{itemize}
+
+\end{document}

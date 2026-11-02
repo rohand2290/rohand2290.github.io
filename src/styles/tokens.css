@@ -1,0 +1,48 @@
+:root {
+  /* World */
+  --sky-storm: #5b666c;
+  --sky-clear: #616c72;
+  --cloud-near: #737e83;
+  --cloud-far: #687378;
+  --rain: #d3dbde;
+  --flash: #e9eef2;
+  --grass-wet: #7f9469;
+  --grass-speck: #93a77f;
+  --dirt-lit: #6e5140;
+  --dirt-shadow: #553e31;
+  --bark: #3f3027;
+  --rope-plank: #7a604b;
+  --brick: #9a5a46;
+  --puddle: #6f8a8e;
+  --warm-light: #f6c86a;
+  --crt-screen: #8fc7a4;
+
+  /* Interface */
+  --paper: #f3ead8;
+  --ink: #26221f;
+  --plate: #2f2a26;
+  --note-frame: #5a3f36;
+  --button-primary: #e4c88f;
+  --muted-ink: #5a4f46;
+
+  /* Type */
+  --font-pixel: 'Pixelify Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --size-site: 32px;
+  --size-title: 26px;
+  --size-ui: 15px;
+  --size-body: 13px;
+  --size-eyebrow: 11px;
+
+  --sky: var(--sky-storm);
+  --gutter: 48px;
+  --nav-h: 120px;
+  --note-w: 380px;
+}
+
+@media (max-width: 1100px) {
+  :root { --gutter: 24px; --note-w: 340px; }
+}
+@media (max-width: 640px) {
+  :root { --gutter: 16px; }
+}

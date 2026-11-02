@@ -1,0 +1,293 @@
+{
+  "islands": [
+    {
+      "id": "campus",
+      "name": "Campus",
+      "resumeSection": "Education",
+      "position": [
+        -23,
+        0,
+        18
+      ],
+      "footprint": 12,
+      "label": [
+        -1.5,
+        2.2,
+        -4.5
+      ],
+      "props": [
+        {
+          "type": "brick-building",
+          "at": [
+            -1,
+            2
+          ]
+        },
+        {
+          "type": "tree",
+          "at": [
+            3,
+            -1
+          ]
+        },
+        {
+          "type": "puddle",
+          "at": [
+            -4,
+            4.5
+          ],
+          "r": 1.1
+        },
+        {
+          "type": "signpost",
+          "at": [
+            3.5,
+            3.5
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lab",
+      "name": "The Lab",
+      "resumeSection": "Experience",
+      "position": [
+        -27,
+        1,
+        -16
+      ],
+      "footprint": 12,
+      "label": [
+        -3.5,
+        2.2,
+        -3.5
+      ],
+      "props": [
+        {
+          "type": "lab-building",
+          "at": [
+            -2,
+            1
+          ],
+          "item": "roche"
+        },
+        {
+          "type": "helix",
+          "at": [
+            2,
+            -3
+          ],
+          "item": "drexel"
+        },
+        {
+          "type": "puddle",
+          "at": [
+            3.5,
+            2.5
+          ],
+          "r": 0.8
+        },
+        {
+          "type": "signpost",
+          "at": [
+            1,
+            4
+          ]
+        },
+        {
+          "type": "terminal",
+          "at": [
+            -4,
+            -3.5
+          ],
+          "item": "vetsez"
+        }
+      ]
+    },
+    {
+      "id": "grove",
+      "name": "Grove",
+      "resumeSection": "Projects",
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "footprint": 16,
+      "label": [
+        -5,
+        1.6,
+        -5
+      ],
+      "props": [
+        {
+          "type": "graph-sculpture",
+          "at": [
+            0,
+            0
+          ],
+          "nodeItems": [
+            null,
+            "proteinlens",
+            null,
+            "schemaloom",
+            "cytoflow"
+          ]
+        },
+        {
+          "type": "tree",
+          "at": [
+            -7,
+            3.5
+          ]
+        },
+        {
+          "type": "tree",
+          "at": [
+            3.5,
+            -7
+          ]
+        },
+        {
+          "type": "tree",
+          "at": [
+            5.5,
+            2
+          ],
+          "scale": 0.8
+        },
+        {
+          "type": "puddle",
+          "at": [
+            6.5,
+            0
+          ],
+          "r": 0.9
+        },
+        {
+          "type": "signpost",
+          "at": [
+            4,
+            6
+          ]
+        }
+      ]
+    },
+    {
+      "id": "arcade",
+      "name": "Arcade",
+      "resumeSection": "Projects",
+      "position": [
+        -2,
+        0.5,
+        -33
+      ],
+      "footprint": 12,
+      "label": [
+        -3,
+        4,
+        -3
+      ],
+      "props": [
+        {
+          "type": "arcade-cabinet",
+          "at": [
+            -1.5,
+            1
+          ],
+          "screen": "crt",
+          "h": 3.4,
+          "item": "chip8"
+        },
+        {
+          "type": "arcade-cabinet",
+          "at": [
+            2,
+            1.5
+          ],
+          "screen": "warm",
+          "h": 2.4,
+          "item": "low-level"
+        },
+        {
+          "type": "signpost",
+          "at": [
+            3.5,
+            3.5
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lighthouse",
+      "name": "Lighthouse",
+      "resumeSection": "Writing and contact",
+      "position": [
+        31,
+        -1,
+        -5
+      ],
+      "footprint": 10,
+      "label": [
+        4.5,
+        0.8,
+        -3.5
+      ],
+      "props": [
+        {
+          "type": "lighthouse",
+          "at": [
+            -1,
+            -1
+          ]
+        },
+        {
+          "type": "signpost",
+          "at": [
+            2.5,
+            2.5
+          ]
+        }
+      ]
+    }
+  ],
+  "bridges": [
+    {
+      "from": "lab",
+      "to": "grove",
+      "weight": 3
+    },
+    {
+      "from": "grove",
+      "to": "arcade",
+      "weight": 2
+    },
+    {
+      "from": "campus",
+      "to": "lab",
+      "weight": 1
+    },
+    {
+      "from": "campus",
+      "to": "grove",
+      "weight": 1
+    },
+    {
+      "from": "lab",
+      "to": "arcade",
+      "weight": 1
+    },
+    {
+      "from": "grove",
+      "to": "lighthouse",
+      "weight": 1
+    }
+  ],
+  "spawn": {
+    "island": "grove",
+    "at": [
+      0,
+      5
+    ]
+  }
+}
