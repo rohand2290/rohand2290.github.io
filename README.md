@@ -1,6 +1,6 @@
 # Overcast Archipelago
 
-Rohan's portfolio: floating voxel islands in a rainstorm. 
+Floating voxel islands in a rainstorm. 
 
 ```sh
 npm install
