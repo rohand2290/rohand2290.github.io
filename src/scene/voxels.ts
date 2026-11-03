@@ -22,6 +22,10 @@ export const worldUniforms = {
   uFlashColor: { value: new Color(palette.flash) },
   /** Per island: center x, center z, radius, current float offset. Radius 0 = unused slot. */
   uIslands: { value: Array.from({ length: MAX_ISLANDS }, () => new Vector4(0, 0, 0, 0)) },
+  /** What rock fades toward as it drops away: the sky behind the islands. */
+  uHaze: { value: new Color(palette.skyStorm) },
+  /** Size of one dither cell in device px, so the rock dissolves in the same pixels as the clouds. */
+  uDitherPx: { value: 4 },
 };
 
 /**
@@ -217,6 +221,37 @@ export class VoxelBatch {
 
 export function solidMaterial(): MeshBasicMaterial {
   return withFlash(new MeshBasicMaterial({ vertexColors: true }), 0.45);
+}
+
+/**
+ * The islands' rock. Going down, it hazes toward the sky color and then dissolves in a Bayer
+ * dither, so the undersides melt into the weather. `aFade` runs from 0 (solid) to 1 (gone).
+ * Dithering rather than alpha keeps the mesh opaque, so it needs no sorting against the props.
+ */
+export function terrainMaterial(): MeshBasicMaterial {
+  const material = solidMaterial();
+  const flash = material.onBeforeCompile.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    flash(shader, renderer);
+    shader.uniforms.uHaze = worldUniforms.uHaze;
+    shader.uniforms.uDitherPx = worldUniforms.uDitherPx;
+    shader.vertexShader = shader.vertexShader
+      .replace('void main() {', 'attribute float aFade;\nvarying float vFade;\nvoid main() {\n  vFade = aFade;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        'void main() {',
+        `uniform vec3 uHaze;
+uniform float uDitherPx;
+varying float vFade;
+float bayer2(vec2 p) { return fract(p.x / 2.0 + p.y * p.y * 0.75); }
+float bayer4(vec2 p) { return bayer2(0.5 * p) * 0.25 + bayer2(p) + 0.03125; }
+void main() {
+  if (vFade > bayer4(floor(floor(gl_FragCoord.xy) / uDitherPx))) discard;`,
+      )
+      .replace('#include <color_fragment>', '#include <color_fragment>\n  diffuseColor.rgb = mix(diffuseColor.rgb, uHaze, min(vFade * 2.2, 0.8));');
+  };
+  material.customProgramCacheKey = () => 'terrain';
+  return material;
 }
 
 /** Lit windows, lamps and screens: unshaded, and barely touched by the flash. */

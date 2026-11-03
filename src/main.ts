@@ -68,7 +68,7 @@ let player: Player | null = null;
 let lastFlash = 0;
 
 // ---------- HTML layer first: it paints before three.js loads ----------
-buildSky($('sky'), $('mist'));
+buildSky($('sky'), $('mist'), $('grade'));
 
 const sound = new Sound();
 const labels = new Labels($('labels'), worldSpec.islands, { open: openIsland, hover: setHover });

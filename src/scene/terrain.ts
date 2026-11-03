@@ -1,6 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, Mesh, Vector3 } from 'three';
 import { palette, SHADOW_FACTOR } from '../palette';
-import { solidMaterial } from './voxels';
+import { terrainMaterial } from './voxels';
 
 /**
  * Low-poly floating-island terrain. Each island is a faceted grass cap with an irregular rim,
@@ -16,6 +16,9 @@ export const TERRAIN_DEPTH = 6;
 /** Widest the rim can reach beyond the footprint edge. */
 export const MAX_RIM = 2.1;
 
+/** How far below the top the rock starts to dissolve. */
+const FADE_START = 2.2;
+
 const N = 40; // angular samples around the top and upper cliffs (multiple of 8 so square corners land on a sample)
 
 const tA = new Vector3();
@@ -26,6 +29,9 @@ const tN = new Vector3();
 export class TerrainBatch {
   private readonly pos: number[] = [];
   private readonly col: number[] = [];
+  private readonly fade: number[] = [];
+  /** Height of the island currently being built; the depth fade is measured down from it. */
+  top = 0;
 
   /** Adds a triangle. Shading is baked from its normal to match the voxel faces' lighting. */
   tri(a: Vector3, b: Vector3, c: Vector3, color: Color) {
@@ -43,6 +49,7 @@ export class TerrainBatch {
     for (const v of [a, b, c]) {
       this.pos.push(v.x, v.y, v.z);
       this.col.push(color.r * s, color.g * s, color.b * s);
+      this.fade.push(smooth(FADE_START, TERRAIN_DEPTH - 0.4, this.top - v.y));
     }
   }
 
@@ -50,8 +57,9 @@ export class TerrainBatch {
     const g = new BufferGeometry();
     g.setAttribute('position', new BufferAttribute(new Float32Array(this.pos), 3));
     g.setAttribute('color', new BufferAttribute(new Float32Array(this.col), 3));
+    g.setAttribute('aFade', new BufferAttribute(new Float32Array(this.fade), 1));
     g.computeBoundingSphere();
-    return new Mesh(g, solidMaterial());
+    return new Mesh(g, terrainMaterial());
   }
 }
 
@@ -144,6 +152,7 @@ export interface RimSection {
 export function buildTerrain(t: TerrainBatch, o: TerrainOptions): TerrainResult {
   const { center: c, footprint, bridgeAngles, rand } = o;
   const H = footprint / 2;
+  t.top = c.y;
   const rimNoise = ringNoise(rand, [2, 3, 5, 7]);
   const knollNoise = ringNoise(rand, [3, 4, 6]);
   const dropNoise = ringNoise(rand, [2, 5]);

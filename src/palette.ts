@@ -17,7 +17,8 @@ const rp = solarized;
 export const palette = {
   skyStorm: rp.highlightMed, cloudNear: rp.highlightHigh, cloudFar: rp.overlay,
   rain: rp.subtle, flash: rp.text,
-  grassWet: rp.green, grassSpeck: rp.pine,
+  // Solarized green taken down in value and saturation, so the grass sits under the glows.
+  grassWet: '#56680f', grassSpeck: rp.pine,
   dirtLit: rp.overlay, dirtShadow: rp.surface,
   bark: rp.base, ropePlank: rp.rose, brick: rp.love,
   puddle: rp.pine, warmLight: rp.gold, crtScreen: rp.foam,
@@ -91,7 +92,7 @@ export const propColors = {
   waterDeep: rp.pine,
   waterLight: '#5fb3d9',
   waterFoam: rp.rose,
-  tuft: '#5c6d00',
+  tuft: '#3f4e06',
   smoke: rp.subtle,
   chimney: rp.highlightHigh,
   stone: rp.muted,

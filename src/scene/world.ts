@@ -1,4 +1,5 @@
 import { ColorManagement, LinearSRGBColorSpace, Scene, Vector3, WebGLRenderer } from 'three';
+import { palette } from '../palette';
 import type { WorldSpec } from '../content/types';
 import { LightRig } from '../weather/lights';
 import { Rain, type RainMode } from '../weather/rain';
@@ -83,6 +84,7 @@ export class World {
       powerPreference: 'high-performance',
     });
     this.renderer.setPixelRatio(dpr);
+    worldUniforms.uDitherPx.value = Math.round(4 * dpr);
     this.renderer.outputColorSpace = LinearSRGBColorSpace;
     this.renderer.setClearColor(0x000000, 0);
 
@@ -342,6 +344,8 @@ export class World {
   }
 
   setWeather(mode: WeatherMode) {
+    worldUniforms.uHaze.value.set(mode === 'clear' ? palette.cloudNear : palette.skyStorm);
+    this.dirty = true;
     const rain: RainMode = mode === 'clear' ? 'none' : mode;
     this.rain.setMode(rain);
     this.lights.splashRate = mode === 'storm' ? 14 : mode === 'drizzle' ? 6 : 0;

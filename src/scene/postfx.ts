@@ -71,15 +71,30 @@ void main() {
   gl_FragColor = s < 0.02 ? composite(vUv) : blur(vUv, s);
 }`;
 
-/** Second pass: the vertical half of the blur, straight to the canvas. */
+/**
+ * Final color grade, on straight (un-premultiplied) color: a soft contrast curve, then cool
+ * shadows and warm highlights. The vignette and grain live in a CSS layer so they cover the sky too.
+ */
+const GRADE = /* glsl */ `
+vec4 grade(vec4 c) {
+  if (c.a < 0.004) return c;
+  vec3 col = clamp(c.rgb / c.a, 0.0, 1.0);
+  col = mix(col, col * col * (3.0 - 2.0 * col), 0.3);
+  float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
+  col += mix(vec3(-0.014, 0.004, 0.024), vec3(0.03, 0.012, -0.022), smoothstep(0.12, 0.7, luma));
+  return vec4(clamp(col, 0.0, 1.0) * c.a, c.a);
+}`;
+
+/** Second pass: the vertical half of the blur and the grade, straight to the canvas. */
 const BLUR_V = /* glsl */ `
 uniform sampler2D tScene;
 vec4 sampleIt(vec2 uv) { return texture2D(tScene, uv); }
 #define SRC sampleIt
 ${BLUR_COMMON}
+${GRADE}
 void main() {
   float s = spread();
-  gl_FragColor = s < 0.02 ? sampleIt(vUv) : blur(vUv, s);
+  gl_FragColor = grade(s < 0.02 ? sampleIt(vUv) : blur(vUv, s));
 }`;
 
 export interface PostFxOptions {
