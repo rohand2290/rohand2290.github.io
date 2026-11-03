@@ -33,6 +33,8 @@ export interface IslandSpec {
   /** Label anchor offset from the top center. */
   label: [number, number, number];
   props: PropSpec[];
+  /** Water spilling off the rim: world angle in degrees (0 = +x, 90 = +z) and sheet width. */
+  waterfalls?: { angle: number; width?: number }[];
 }
 
 export interface BridgeSpec {

@@ -128,6 +128,16 @@ export interface TerrainResult {
   maxRim: number;
   /** Points along the middle of the rim (on the grass), for scattering rocks. */
   rimPoints: { p: Vector3; knoll: number }[];
+  /** The rim along world angle θ: the footprint edge, the middle of the rim, and its outer lip. */
+  rimAt: (θ: number) => RimSection;
+}
+
+export interface RimSection {
+  edge: Vector3;
+  mid: Vector3;
+  lip: Vector3;
+  /** Horizontal unit vector pointing out of the island along θ. */
+  out: Vector3;
 }
 
 /** Builds one island's terrain into the batch. */
@@ -218,5 +228,15 @@ export function buildTerrain(t: TerrainBatch, o: TerrainOptions): TerrainResult 
     t.tri(under2[k], under2[(k + 1) % under2.length], apex, tint(palette.dirtShadow, rand, 0.06, palette.bark, 0.35));
   }
 
-  return { maxRim, rimPoints: mid.map((p, k) => ({ p, knoll: rim[k].knoll })) };
+  const rimAt = (θ: number): RimSection => {
+    const k = ((Math.round((θ / (Math.PI * 2)) * N) % N) + N) % N;
+    const a = angles[k];
+    return {
+      edge: at(a, rim[k].edge, 0),
+      mid: mid[k].clone(),
+      lip: lip[k].clone(),
+      out: new Vector3(Math.cos(a), 0, Math.sin(a)),
+    };
+  };
+  return { maxRim, rimPoints: mid.map((p, k) => ({ p, knoll: rim[k].knoll })), rimAt };
 }

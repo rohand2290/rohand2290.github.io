@@ -10,7 +10,9 @@ import { StepCat } from './cat';
 import { ROYCE_CAT_SEAT } from './props';
 import { buildIsland, type IslandRecord } from './islands';
 import { TerrainBatch } from './terrain';
-import { emissiveMaterial, shadedCube, solidMaterial, VoxelBatch, worldUniforms } from './voxels';
+import { emissiveMaterial, islandBobAt, MAX_ISLANDS, shadedCube, solidMaterial, VoxelBatch, worldUniforms } from './voxels';
+import { Waterfalls } from './waterfall';
+import { PostFx } from './postfx';
 
 // Work in sRGB numbers end to end so palette hexes render exactly as specified.
 ColorManagement.enabled = false;
@@ -43,6 +45,8 @@ export class World {
   /** Bridges in the same order as spec.bridges, with the curve the character walks. */
   readonly bridges: BridgeRecord[];
   readonly bridgeDip: BridgeDip;
+  /** Bloom on the glowing things and a tilt-shift blur. Off with ?fx=off, or if frames stay slow. */
+  readonly fx: PostFx;
   /** Called once if a phone stays under 30fps even after the rain is at its thinnest. */
   onStillSlow: (() => void) | null = null;
   private slowChecks = 0;
@@ -60,6 +64,9 @@ export class World {
   private readonly updaters: ((t: number, dt: number) => boolean)[] = [];
   /** The point the camera eases toward while following the character. */
   private followTarget: Vector3 | null = null;
+  /** Each island's float: how far it rises and falls (world units), its period (s) and phase. */
+  private readonly floats: { amp: number; period: number; phase: number }[] = [];
+  private readonly waterfalls: Waterfalls;
   private hasFollowed = false;
 
   constructor(opts: WorldOptions) {
@@ -78,6 +85,7 @@ export class World {
 
     const solid = new VoxelBatch();
     const emissive = new VoxelBatch();
+    const glow = new VoxelBatch();
     const terrain = new TerrainBatch();
     const byId = new Map(opts.spec.islands.map((s) => [s.id, s]));
     for (const spec of opts.spec.islands) {
@@ -87,15 +95,24 @@ export class World {
         if (!other) return [];
         return [Math.atan2(other.position[2] - spec.position[2], other.position[0] - spec.position[0])];
       });
-      this.islands.set(spec.id, buildIsland(spec, solid, emissive, this.lights, terrain, bridgeAngles));
+      this.islands.set(spec.id, buildIsland(spec, solid, emissive, glow, this.lights, terrain, bridgeAngles));
     }
     this.bridges = buildBridges(opts.spec.bridges, new Map(opts.spec.islands.map((s) => [s.id, s])), solid);
+
+    // Waterfalls add their spring stones to the solid batch, so they go in before it's built.
+    this.waterfalls = new Waterfalls(opts.spec.islands, this.islands, this.lights, solid);
+    this.scene.add(this.waterfalls.group);
 
     const solidMesh = solid.build(shadedCube(), solidMaterial());
     this.bridgeDip = new BridgeDip(this.bridges, solidMesh);
     const emissiveMesh = emissive.build(shadedCube(false), emissiveMaterial(), true);
     this.lights.finalize(emissiveMesh);
-    this.scene.add(terrain.build(), solidMesh, emissiveMesh, this.lights.group);
+    const glowMesh = glow.build(shadedCube(), solidMaterial());
+    this.scene.add(terrain.build(), solidMesh, emissiveMesh, glowMesh, this.lights.group);
+
+    // Lamps, windows and screens bloom fully; the mushroom caps (shaded, paler) glow more softly.
+    this.fx = new PostFx(this.renderer, { bloom: [[emissiveMesh, 1], [glowMesh, 0.24]], isPhone: opts.isPhone });
+    this.fx.enabled = new URLSearchParams(location.search).get('fx') !== 'off';
 
     // Ambient creatures: gulls circling each lighthouse lamp (about 5.9 above the island top),
     // a fish leaping in every puddle, and a cat on the Royce Hall steps.
@@ -120,6 +137,13 @@ export class World {
         }
       }
     }
+
+    // Floating: every island drifts up and down on its own slow cycle, out of step with the others.
+    opts.spec.islands.slice(0, MAX_ISLANDS).forEach((spec, i) => {
+      const [x, , z] = spec.position;
+      worldUniforms.uIslands.value[i].set(x, z, spec.footprint / 2 + 1, 0);
+      this.floats.push({ amp: 0.2 + 0.04 * ((i * 0.61) % 1), period: 6.5 + ((i * 1.7) % 2.6), phase: i * 2.1 });
+    });
 
     this.rain = new Rain(opts.isPhone);
     this.scene.add(...this.rain.meshes);
@@ -150,7 +174,13 @@ export class World {
     this.iso.maxScale = scale * 2.8;
     const view = this.iso.viewFor((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (r.left + r.right) / 2, (r.top + r.bottom) / 2, scale);
     this.iso.animateTo(view, dur);
+    this.focusOn((r.top + r.bottom) / 2, dur === 0);
     this.dirty = true;
+  }
+
+  /** Keep the tilt-shift band on a screen height (CSS px from the top). */
+  private focusOn(y: number, snap = false) {
+    this.fx?.setFocus(y / Math.max(1, window.innerHeight), snap);
   }
 
   /** Eases the camera so the island sits centered in the space the note leaves free. */
@@ -169,6 +199,7 @@ export class World {
     scale = Math.max(scale, this.iso.minScale);
     const view = this.iso.viewFor((b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, (r.left + r.right) / 2, (r.top + r.bottom) / 2, scale);
     this.iso.animateTo(view, dur);
+    this.focusOn((r.top + r.bottom) / 2, dur === 0);
     this.dirty = true;
   }
 
@@ -219,6 +250,7 @@ export class World {
     this.iso.cy += (ty - this.iso.cy) * k;
     this.iso.clamp();
     this.iso.apply();
+    this.focusOn(this.iso.toScreen(p).y);
   }
 
   /** Runs every frame before drawing. Return true if anything changed (forces a redraw under reduced motion). */
@@ -233,7 +265,7 @@ export class World {
     let bestD = Infinity;
     for (const [id, island] of this.islands) {
       // Where the ray crosses this island's top plane, if that's inside its footprint.
-      const t = (island.top.y - ray.origin.y) / ray.direction.y;
+      const t = (island.top.y + islandBobAt(island.top.x, island.top.z) - ray.origin.y) / ray.direction.y;
       if (t <= 0) continue;
       const hit = ray.origin.clone().addScaledVector(ray.direction, t);
       const half = island.size / 2;
@@ -246,8 +278,15 @@ export class World {
     return best;
   }
 
+  /** Screen position of a world point, riding the island float like everything drawn there. */
   project(p: Vector3) {
-    return this.iso.toScreen(p);
+    return this.iso.toScreen(new Vector3(p.x, p.y + islandBobAt(p.x, p.z), p.z));
+  }
+
+  private updateFloat(t: number) {
+    this.floats.forEach((f, i) => {
+      worldUniforms.uIslands.value[i].w = this.reduced ? 0 : f.amp * Math.sin((t / f.period) * Math.PI * 2 + f.phase);
+    });
   }
 
   /** Screen rectangle an island covers (used to keep the note and bolts off it). */
@@ -313,6 +352,7 @@ export class World {
     const w = window.innerWidth;
     const h = window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.fx?.setSize(w, h);
     this.iso.setSize(w, h);
     this.rain.resize(w, h);
     this.dirty = true;
@@ -345,8 +385,11 @@ export class World {
       this.last = now;
       const t = (now - this.start) / 1000;
       let changed = false;
+      this.updateFloat(t);
+      this.waterfalls.update(t, this.reduced);
       for (const fn of this.updaters) changed = fn(t, dt) || changed;
       changed = this.bridgeDip.update(dt) || changed;
+      changed = this.fx.update(dt, this.reduced) || changed;
       const moving = this.iso.update(now);
       if (!moving) this.updateFollow(dt);
       // Under reduced motion nothing animates, so only draw when something changed.
@@ -354,7 +397,7 @@ export class World {
       this.lights.update(t, dt);
       this.rain.update(dt);
       this.onFrame?.();
-      this.renderer.render(this.scene, this.iso.camera);
+      this.fx.render(this.scene, this.iso.camera);
       this.dirty = false;
       this.watchPerformance(now, dt);
     };
@@ -373,6 +416,13 @@ export class World {
     const budget = this.opts.isPhone ? 34 : 18.5;
     const density = this.rain.getDensity();
     if (median > budget && density > 0.25) this.rain.setDensity(Math.max(0.25, density * 0.75));
+    // Then the post-processing: two slow checks in a row at minimum rain turn it off.
+    else if (median > budget && this.fx.enabled) {
+      if (++this.slowChecks >= 2) {
+        this.fx.enabled = false;
+        this.slowChecks = 0;
+      }
+    }
     // Rain first, then the character's animation detail: two slow checks in a row (about 4s) at minimum rain.
     else if (median > budget && this.opts.isPhone && this.onStillSlow) {
       if (++this.slowChecks >= 2) {

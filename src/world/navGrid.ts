@@ -29,6 +29,10 @@ function propFootprint(p: PropSpec): [number, number] | null {
       return [3.6, 3.8];
     case 'tree':
       return [0.3, 0.3];
+    case 'forest-tree':
+      return [0.4, 0.4];
+    case 'mushroom':
+      return [0.3, 0.3];
     case 'helix':
       return [0.9, 0.9];
     case 'lighthouse':
@@ -46,7 +50,12 @@ function propFootprint(p: PropSpec): [number, number] | null {
   }
 }
 
-/** The glowing nodes of the Grove sculpture, relative to the sculpture's position: [x, z, size]. */
+/** Stem height and cap width of a Grove mushroom of node size `s` (shared by the builder and picking). */
+export function groveShroom(s: number) {
+  return { h: 1.0 + s * 2.4, capW: 1.2 + s * 2.0 };
+}
+
+/** The glowing mushrooms of the Grove, relative to the sculpture's position: [x, z, size]. */
 export const GRAPH_NODES: [number, number, number][] = [
   [-4.4, 0.3, 0.6],
   [-3.0, -4.7, 0.9],

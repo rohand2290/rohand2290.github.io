@@ -20,10 +20,12 @@ import {
 } from 'three';
 import { solarized, palette, propColors } from '../palette';
 import { ISO_RIGHT } from '../scene/camera';
-import { shadedCube, solidMaterial, withFlash } from '../scene/voxels';
+import { islandBobAt, shadedCube, solidMaterial, withBob, withFlash } from '../scene/voxels';
 
 interface Glow {
   sprite: Sprite | null;
+  /** The sprite's resting height; it rides the island float on top of this. */
+  baseY: number;
   pool: Mesh | null;
   poolBase: number;
   island: string;
@@ -63,12 +65,13 @@ function glowTexture(): CanvasTexture {
 
 /**
  * Everything that glows or moves gently on the islands: window glows and their flicker,
- * arcade screens, chimney smoke, the lighthouse beam, puddles and rain ripples.
+ * arcade screens, Grove spores, chimney smoke, the lighthouse beam, puddles and rain ripples.
  */
 export class LightRig {
   readonly group = new Group();
   private readonly glows: Glow[] = [];
   private readonly screens: { index: number; color: Color; phase: number }[] = [];
+  private readonly twinkles: { index: number; color: Color; phase: number; rate: number }[] = [];
   private readonly smokeSources: Vector3[] = [];
   private readonly puddles: { pos: Vector3; r: number; next: number }[] = [];
   private readonly splashAreas: { top: Vector3; size: number }[] = [];
@@ -133,14 +136,14 @@ export class LightRig {
       }
       pool = new Mesh(
         this.poolGeo,
-        new MeshBasicMaterial({
+        withBob(new MeshBasicMaterial({
           map: this.texture,
           color: col,
           blending: AdditiveBlending,
           transparent: true,
           depthWrite: false,
           opacity: base,
-        }),
+        }), 'glow-pool'),
       );
       pool.position.set(pos.x, opts.ground + 0.04, pos.z);
       pool.scale.set(size * 1.1, 1, size * 1.1);
@@ -149,6 +152,7 @@ export class LightRig {
     }
     this.glows.push({
       sprite,
+      baseY: pos.y,
       pool,
       poolBase: base,
       island,
@@ -160,6 +164,12 @@ export class LightRig {
 
   addScreen(index: number, color: string) {
     this.screens.push({ index, color: new Color(color), phase: Math.random() * 10 });
+  }
+
+  /** A tiny emissive voxel (a spore or a cap spot) that fades in and out on its own slow beat. */
+  addTwinkle(index: number, color: string, seed: number) {
+    const r = Math.abs(Math.sin(seed * 12.9898) * 43758.5453) % 1;
+    this.twinkles.push({ index, color: new Color(color), phase: r * Math.PI * 2, rate: 0.6 + r * 1.1 });
   }
 
   addSmokeSource(pos: Vector3) {
@@ -187,7 +197,7 @@ export class LightRig {
     geo.rotateZ(Math.PI / 2); // apex at the lamp, opening along +X
     const mesh = new Mesh(
       geo,
-      new MeshBasicMaterial({ color: solarized.gold, transparent: true, opacity: 0.2, depthWrite: false, side: DoubleSide }),
+      withBob(new MeshBasicMaterial({ color: solarized.gold, transparent: true, opacity: 0.2, depthWrite: false, side: DoubleSide }), 'beam'),
     );
     mesh.renderOrder = 4;
     const pivot = new Group();
@@ -206,7 +216,7 @@ export class LightRig {
     ring.rotateX(-Math.PI / 2);
     this.rippleMesh = new InstancedMesh(
       ring,
-      new MeshBasicMaterial({ blending: AdditiveBlending, transparent: true, depthWrite: false }),
+      withBob(new MeshBasicMaterial({ blending: AdditiveBlending, transparent: true, depthWrite: false }), 'ripple'),
       RIPPLE_POOL,
     );
     this.rippleMesh.instanceMatrix.setUsage(DynamicDrawUsage);
@@ -264,11 +274,23 @@ export class LightRig {
     for (const g of this.glows) {
       const flicker = still ? 1 : 0.875 + 0.125 * Math.sin((t / g.period) * Math.PI * 2 + g.phase);
       const boost = g.island === this.hover ? 1.7 : g.island === this.active ? 1.2 : 1;
-      if (g.sprite) g.sprite.material.opacity = Math.min(1, g.base * flicker * boost);
+      if (g.sprite) {
+        g.sprite.material.opacity = Math.min(1, g.base * flicker * boost);
+        g.sprite.position.y = g.baseY + islandBobAt(g.sprite.position.x, g.sprite.position.z);
+      }
       if (g.pool) (g.pool.material as MeshBasicMaterial).opacity = Math.min(1, g.poolBase * flicker * boost);
     }
 
     // Arcade screens: a steady hum with the odd quick dip.
+    // Grove spores and cap spots: each fades between dim and bright, out of step with the rest.
+    if (this.emissiveMesh?.instanceColor && this.twinkles.length) {
+      for (const w of this.twinkles) {
+        const k = still ? 0.8 : 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.sin(t * w.rate + w.phase), 2);
+        this.emissiveMesh.setColorAt(w.index, this.c.copy(w.color).multiplyScalar(k));
+      }
+      this.emissiveMesh.instanceColor.needsUpdate = true;
+    }
+
     if (this.emissiveMesh?.instanceColor && this.screens.length) {
       for (const s of this.screens) {
         let k = 1;

@@ -1,6 +1,6 @@
 import { BoxGeometry, CircleGeometry, Group, Mesh, MeshBasicMaterial, Object3D } from 'three';
 import { solarized, palette, SHADOW_FACTOR } from '../palette';
-import { worldUniforms } from '../scene/voxels';
+import { injectBob, withBob, worldUniforms } from '../scene/voxels';
 import type { Pose } from './animation';
 
 /**
@@ -36,6 +36,7 @@ function charMaterial(color: string): MeshBasicMaterial {
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uFlash = worldUniforms.uFlash;
     shader.uniforms.uFlashColor = worldUniforms.uFlashColor;
+    injectBob(shader);
     shader.vertexShader = shader.vertexShader
       .replace('void main() {', 'varying vec3 vWN;\nvoid main() {')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n  vWN = normalize(mat3(modelMatrix) * normal);');
@@ -54,6 +55,7 @@ function charMaterial(color: string): MeshBasicMaterial {
         '#include <dithering_fragment>\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, uFlashColor, clamp(uFlash * 0.45, 0.0, 1.0));',
       );
   };
+  m.customProgramCacheKey = () => 'character';
   materials.set(color, m);
   return m;
 }
@@ -149,7 +151,7 @@ export class CharacterModel {
     // A soft contact shadow so the character sits on the grass.
     this.shadow = new Mesh(
       new CircleGeometry(0.46, 20),
-      new MeshBasicMaterial({ color: palette.ink, transparent: true, opacity: 0.22, depthWrite: false }),
+      withBob(new MeshBasicMaterial({ color: palette.ink, transparent: true, opacity: 0.22, depthWrite: false })),
     );
     this.shadow.rotation.x = -Math.PI / 2;
     this.shadow.position.y = 0.025;

@@ -1,5 +1,5 @@
 import type { IslandSpec, PropSpec } from '../content/types';
-import { GRAPH_NODES, type Cell, type NavGrid, type Point3 } from './navGrid';
+import { GRAPH_NODES, groveShroom, type Cell, type NavGrid, type Point3 } from './navGrid';
 
 /**
  * Things the character can walk up to and read: each island's signpost (opens the island's
@@ -67,7 +67,7 @@ export function buildInteractables(specs: IslandSpec[], grid: NavGrid): Interact
         (p.nodeItems as (string | null)[]).forEach((item, i) => {
           if (!item || !GRAPH_NODES[i]) return;
           const [nx, nz, s] = GRAPH_NODES[i];
-          add(item, 'object', x + nx, z + nz, s / 2, s / 2, 0.4 + s);
+          add(item, 'object', x + nx, z + nz, s / 2, s / 2, groveShroom(s).h + 0.5);
         });
       } else if (typeof p.item === 'string') {
         const s = shape(p);

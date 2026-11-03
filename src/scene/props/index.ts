@@ -4,11 +4,13 @@ import type { PropSpec } from '../../content/types';
 import { ISO_RIGHT } from '../camera';
 import type { VoxelBatch } from '../voxels';
 import type { LightRig } from '../../weather/lights';
-import { GRAPH_NODES } from '../../world/navGrid';
+import { GRAPH_NODES, groveShroom } from '../../world/navGrid';
 
 export interface PropContext {
   solid: VoxelBatch;
   emissive: VoxelBatch;
+  /** Shaded like `solid`, but blooms (mushroom caps lit from within). */
+  glow: VoxelBatch;
   lights: LightRig;
   islandId: string;
   /** World position of the island's top center. */
@@ -260,23 +262,235 @@ function helix(ctx: PropContext, p: Vector3) {
   lights.addGlow(ctx.islandId, new Vector3(p.x, p.y + 2.4, p.z), 5, palette.warmLight, 0.14, { halo: 0.14 });
 }
 
-// Node positions are traced from the Grove in 01-storm-hero.png (shared with the nav grid).
+/** Small deterministic RNG so the Grove's spots and spores land in the same place on every load. */
+function seeded(seed: number) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), a | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const SHROOM_UP = new Vector3(0, 1, 0);
+
+/**
+ * Builds boxes in a mushroom's own frame (origin at the foot, +y up the stem), so a whole mushroom
+ * can lean as one piece. Octagons are four boxes, two of them turned 45°, like `VoxelBatch.octagon`.
+ */
+class ShroomFrame {
+  private readonly turn = new Quaternion();
+  constructor(private readonly frame: Matrix4) {}
+
+  box(batch: VoxelBatch, x: number, y: number, z: number, sx: number, sy: number, sz: number, color: string, turn = 0) {
+    this.turn.setFromAxisAngle(SHROOM_UP, turn);
+    const m = new Matrix4().compose(new Vector3(x, y, z), this.turn, new Vector3(sx, sy, sz));
+    return batch.push(this.frame.clone().multiply(m), color);
+  }
+
+  /** Regular octagon slab W across the flats, h tall, bottom at y (local). */
+  octagon(batch: VoxelBatch, y: number, W: number, h: number, color: string) {
+    const a = W * (Math.SQRT2 - 1);
+    const yc = y + h / 2;
+    this.box(batch, 0, yc, 0, W, h, a, color);
+    this.box(batch, 0, yc, 0, a, h, W, color);
+    this.box(batch, 0, yc, 0, W, h, a, color, Math.PI / 4);
+    this.box(batch, 0, yc, 0, W, h, a, color, -Math.PI / 4);
+  }
+
+  point(x: number, y: number, z: number) {
+    return new Vector3(x, y, z).applyMatrix4(this.frame);
+  }
+
+  static at(x: number, y: number, z: number, lean: Vector3, angle: number) {
+    const tilted = new Vector3(lean.x * Math.sin(angle), Math.cos(angle), lean.z * Math.sin(angle)).normalize();
+    const q = new Quaternion().setFromUnitVectors(SHROOM_UP, tilted);
+    return new ShroomFrame(new Matrix4().compose(new Vector3(x, y, z), q, new Vector3(1, 1, 1)));
+  }
+}
+
+interface ShroomOpts {
+  /** Horizontal direction the mushroom leans toward, and by how much (radians). */
+  lean?: Vector3;
+  angle?: number;
+  /** Small mushrooms get a rounder, bell-shaped cap instead of the big flat one. */
+  bell?: boolean;
+  glow?: boolean;
+}
+
+/**
+ * A low-poly blue mushroom, after the reference: a thick stem on a wide, bulbous foot that narrows
+ * up its length and flares again under the cap; a broad cap with a thick rim that turns down at the
+ * edge and a flat, paler top. The stem and cap are shaded solids so their faces read as facets;
+ * the gills underneath and the spots on top glow. Small mushrooms carry a taller bell cap.
+ */
+function shroom(ctx: PropContext, x: number, y: number, z: number, h: number, capW: number, seed: number, opts: ShroomOpts = {}) {
+  const { emissive, solid, glow, lights } = ctx;
+  const rand = seeded(seed);
+  const f = ShroomFrame.at(x, y, z, opts.lean ?? LEFT, opts.angle ?? 0.05);
+  const bell = !!opts.bell;
+
+  // Stem: stacked octagons. Widest at the foot, pinched below the cap, then a short flare.
+  const foot = capW * (bell ? 0.36 : 0.34);
+  const neck = capW * (bell ? 0.22 : 0.2);
+  const segs = Math.max(4, Math.round(h / 0.22));
+  const sh = h / segs;
+  for (let i = 0; i < segs; i++) {
+    const u = (i + 0.5) / segs;
+    let w = neck + (foot - neck) * Math.pow(1 - u, 2.4);
+    if (u > 0.86) w += (u - 0.86) * capW * 0.55;
+    const col = u < 0.3 ? propColors.shroomFoot : propColors.shroomStem;
+    f.octagon(solid, i * sh, w, sh + 0.005, col);
+  }
+  // The foot swells out just above the grass.
+  f.octagon(solid, 0, foot * 1.12, Math.min(0.18, h * 0.08), propColors.shroomFoot);
+  solid.standing(x, y, z, foot * 1.5, 0.06, foot * 1.5, propColors.tuft);
+
+  // Cap. Glowing gills underneath, then a downturned rim and a flat-topped dome.
+  const capH = capW * (bell ? 0.42 : 0.26);
+  const yc = h;
+  f.octagon(emissive, yc - 0.04, capW * 0.82, 0.06, propColors.shroomGill);
+  const layers: [number, number, string][] = bell
+    ? [[1, 0.3, propColors.shroomBrim], [0.84, 0.28, propColors.shroomCap], [0.6, 0.24, propColors.shroomCap], [0.34, 0.18, propColors.shroomCrown]]
+    : [[1, 0.3, propColors.shroomBrim], [0.95, 0.24, propColors.shroomCap], [0.82, 0.2, propColors.shroomCap], [0.62, 0.16, propColors.shroomCrown], [0.4, 0.1, propColors.shroomCrown]];
+  // The rim hangs a little below the gills, the way the reference's edge turns down.
+  let ly = yc - capH * 0.18;
+  const ledges: [number, number, number][] = [];
+  layers.forEach(([wk, hk, col], i) => {
+    const lh = capH * hk;
+    f.octagon(glow, ly, capW * wk, lh, col);
+    ly += lh;
+    const next = layers[i + 1];
+    ledges.push([capW * (next ? next[0] : 0) * 0.5, capW * wk * 0.5 * 0.92, ly]);
+  });
+
+  // A scatter of glowing spots on the exposed ledges of the cap.
+  const spots = Math.round(capW * (bell ? 2 : 3.5));
+  for (let k = 0; k < spots; k++) {
+    const [r0, r1, sy] = ledges[1 + Math.floor(rand() * (ledges.length - 1))];
+    const a = rand() * Math.PI * 2;
+    const r = r0 + rand() * Math.max(0.01, r1 - r0);
+    const d = 0.05 + rand() * 0.05;
+    const i = f.box(emissive, Math.cos(a) * r, sy + d / 2, Math.sin(a) * r, d, d, d, propColors.shroomSpot);
+    lights.addTwinkle(i, propColors.shroomSpot, seed * 31 + k);
+  }
+
+  if (opts.glow !== false) {
+    lights.addGlow(ctx.islandId, f.point(0, yc - 0.1, 0), capW * 2.4 + 1, propColors.shroomGlow, 0.22, { overlay: true });
+    lights.addGlow(ctx.islandId, new Vector3(x, y, z), capW * 2.2, propColors.shroomGlow, 0.3, { ground: y, halo: 0 });
+  }
+}
+
+/** Little companions crowded round each Grove mushroom: [dx, dz, size]. Index matches GRAPH_NODES. */
+const GROVE_COMPANIONS: [number, number, number][][] = [
+  [[0.7, 0.45, 0.24], [-0.35, 0.7, 0.16]],
+  // ProteinLens: a tight cluster, like the protein clusters it finds.
+  [[0.85, 0.35, 0.34], [-0.55, 0.8, 0.26], [0.45, 0.85, 0.2], [0.95, -0.35, 0.16]],
+  [[-0.6, 0.55, 0.2], [0.55, 0.45, 0.14]],
+  // SchemaLoom: a row of mushrooms stepping down in size, one branch of a DAG.
+  [[0.75, 0.5, 0.36], [1.4, 0.95, 0.26], [1.95, 1.3, 0.17]],
+  // CytoFlow: a straight line of small ones running out, a pipeline.
+  [[0.8, 0.15, 0.24], [1.45, 0.3, 0.24], [2.1, 0.45, 0.24]],
+];
+
+// Mycelium threads that link the mushrooms underground: the Grove's graph edges.
 const GRAPH_EDGES: [number, number][] = [[0, 1], [0, 2], [0, 3], [1, 3], [1, 4], [2, 3], [3, 4]];
 
+/** A glowing root thread from a to b, wandering a little, with short side hairs and a few sparks. */
+function mycelium(ctx: PropContext, a: Vector3, b: Vector3, seed: number) {
+  const { emissive, lights } = ctx;
+  const rand = seeded(seed);
+  const dir = b.clone().sub(a);
+  const side = new Vector3(-dir.z, 0, dir.x).normalize();
+  const steps = Math.max(4, Math.round(dir.length() / 0.9));
+  const pts: Vector3[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const u = i / steps;
+    const wobble = i === 0 || i === steps ? 0 : (rand() - 0.5) * 0.5;
+    pts.push(a.clone().addScaledVector(dir, u).addScaledVector(side, wobble));
+  }
+  for (let i = 0; i < steps; i++) {
+    emissive.plank(pts[i], pts[i + 1], 0.07, 0.03, propColors.mycelium);
+    if (i > 0 && rand() < 0.55) {
+      const hair = pts[i].clone().addScaledVector(side, (rand() < 0.5 ? -1 : 1) * (0.25 + rand() * 0.3)).addScaledVector(dir, (rand() - 0.5) * 0.05);
+      emissive.plank(pts[i], hair, 0.04, 0.025, propColors.mycelium);
+    }
+    if (rand() < 0.5) {
+      const sp = pts[i].clone().lerp(pts[i + 1], rand());
+      const idx = emissive.box(sp.x, sp.y + 0.03, sp.z, 0.09, 0.04, 0.09, propColors.spore);
+      lights.addTwinkle(idx, propColors.spore, seed + i * 7);
+    }
+  }
+}
+
+/**
+ * The Grove: five glowing mushrooms (one per graph node, the three projects among them), linked
+ * by mycelium threads in the grass, with spores drifting in the air above the caps.
+ */
 function graphSculpture(ctx: PropContext, p: Vector3) {
-  const { solid, emissive, lights } = ctx;
+  const { emissive, solid, lights } = ctx;
   const nodes = GRAPH_NODES.map(([x, z, s]) => ({ pos: new Vector3(p.x + x, p.y, p.z + z), s }));
-  for (const [a, b] of GRAPH_EDGES) {
-    const pa = nodes[a].pos.clone().setY(p.y + 0.12);
-    const pb = nodes[b].pos.clone().setY(p.y + 0.12);
-    solid.plank(pa, pb, 0.16, 0.12, solarized.rose);
+  GRAPH_EDGES.forEach(([a, b], i) => {
+    mycelium(ctx, nodes[a].pos.clone().setY(p.y + 0.03), nodes[b].pos.clone().setY(p.y + 0.03), 101 + i * 17);
+  });
+  nodes.forEach((n, i) => {
+    const { h, capW } = groveShroom(n.s);
+    shroom(ctx, n.pos.x, p.y, n.pos.z, h, capW, 7 + i * 13);
+    // Companions sprout from the big one's foot and lean away from it, like the reference cluster.
+    GROVE_COMPANIONS[i].forEach(([dx, dz, s], k) => {
+      const c = groveShroom(s);
+      const out = new Vector3(dx, 0, dz).normalize();
+      shroom(ctx, n.pos.x + dx, p.y, n.pos.z + dz, c.h * 0.8, c.capW * 0.55, 211 + i * 19 + k, {
+        lean: out,
+        angle: 0.16 + 0.12 * ((k * 0.37) % 1),
+        bell: true,
+        glow: false,
+      });
+    });
+    // Grass tufts round the base.
+    const rand = seeded(500 + i);
+    for (let k = 0; k < 5; k++) {
+      const a = rand() * Math.PI * 2;
+      const r = n.s * 0.6 + rand() * 0.7;
+      const tx = n.pos.x + Math.cos(a) * r;
+      const tz = n.pos.z + Math.sin(a) * r;
+      const th = 0.15 + rand() * 0.2;
+      solid.beam(new Vector3(tx, p.y, tz), new Vector3(tx + (rand() - 0.5) * 0.15, p.y + th, tz + (rand() - 0.5) * 0.15), 0.06, propColors.tuft);
+    }
+  });
+  // Spores hanging in the air over the caps.
+  const rand = seeded(9001);
+  for (let k = 0; k < 46; k++) {
+    const n = nodes[k % nodes.length];
+    const { h } = groveShroom(n.s);
+    const a = rand() * Math.PI * 2;
+    const r = 0.4 + rand() * 2.2;
+    const d = 0.05 + rand() * 0.05;
+    const idx = emissive.box(n.pos.x + Math.cos(a) * r, p.y + 0.6 + rand() * (h + 1.4), n.pos.z + Math.sin(a) * r, d, d, d, propColors.spore);
+    lights.addTwinkle(idx, propColors.spore, k * 3.7);
   }
-  for (const n of nodes) {
-    solid.standing(n.pos.x, p.y, n.pos.z, n.s * 0.55, 0.2, n.s * 0.55, propColors.trunk);
-    emissive.box(n.pos.x, p.y + 0.2 + n.s / 2, n.pos.z, n.s, n.s, n.s, palette.warmLight);
-    lights.addGlow(ctx.islandId, n.pos.clone().setY(p.y + 0.6), 2.4 * n.s + 1, palette.warmLight, 0.22, { overlay: true });
-  }
-  lights.addGlow(ctx.islandId, new Vector3(p.x - 1, p.y, p.z), 15, palette.warmLight, 0.4, { ground: p.y, halo: 0 });
+  lights.addGlow(ctx.islandId, new Vector3(p.x - 1, p.y, p.z), 15, propColors.shroomGlow, 0.3, { ground: p.y, halo: 0 });
+}
+
+/** A standalone glowing mushroom (Grove decoration). */
+function mushroom(ctx: PropContext, p: Vector3, spec: PropSpec) {
+  const { h, capW } = groveShroom(Number(spec.scale ?? 0.4));
+  shroom(ctx, p.x, p.y, p.z, h, capW, Math.round(p.x * 13 + p.z * 7));
+}
+
+/** A tall, dark forest trunk with a few stubby branches near the top, the Grove's backdrop. */
+function forestTree(ctx: PropContext, p: Vector3, spec: PropSpec) {
+  const { solid } = ctx;
+  const s = Number(spec.scale ?? 1);
+  const h = 6 * s;
+  const at = (y: number, side = 0, fwd = 0) =>
+    new Vector3(p.x, p.y + y, p.z).addScaledVector(LEFT, side).addScaledVector(TOWARD, fwd);
+  solid.standing(p.x, p.y, p.z, 0.5, 0.25, 0.5, propColors.forestTrunk);
+  solid.beam(at(0), at(h), 0.3, propColors.forestTrunk);
+  solid.beam(at(h * 0.62), at(h * 0.8, 0.7), 0.14, propColors.forestTrunk);
+  solid.beam(at(h * 0.72), at(h * 0.9, -0.6, -0.2), 0.14, propColors.forestTrunk);
+  solid.beam(at(h * 0.45), at(h * 0.55, -0.45), 0.1, propColors.forestTrunk);
 }
 
 /**
@@ -464,6 +678,8 @@ const builders: Record<string, PropBuilder> = {
   puddle,
   helix,
   'graph-sculpture': graphSculpture,
+  mushroom,
+  'forest-tree': forestTree,
   'arcade-cabinet': arcadeCabinet,
   lighthouse,
 };

@@ -4,7 +4,7 @@ import type { IslandSpec } from '../content/types';
 import type { VoxelBatch } from './voxels';
 import type { LightRig } from '../weather/lights';
 import { buildProp } from './props';
-import { buildTerrain, TERRAIN_DEPTH, type TerrainBatch } from './terrain';
+import { buildTerrain, TERRAIN_DEPTH, type RimSection, type TerrainBatch } from './terrain';
 
 export const ISLAND_DEPTH = TERRAIN_DEPTH;
 
@@ -16,6 +16,8 @@ export interface IslandRecord {
   /** Hit box for hover and click picking. */
   bounds: Box3;
   labelAnchor: Vector3;
+  /** The rim's shape along a world angle (where waterfalls spill over). */
+  rimAt: (θ: number) => RimSection;
 }
 
 /** Small deterministic RNG so specks land in the same place on every load. */
@@ -40,6 +42,8 @@ export function buildIsland(
   spec: IslandSpec,
   solid: VoxelBatch,
   emissive: VoxelBatch,
+  /** Shaded solids that also bloom (the Grove's mushroom caps). */
+  glow: VoxelBatch,
   lights: LightRig,
   terrain: TerrainBatch,
   /** World-space angles (atan2(dz, dx)) toward the islands this one bridges to. */
@@ -51,7 +55,7 @@ export function buildIsland(
 
   // Body: a faceted low-poly chunk of land with an irregular rim and a rocky underside.
   const rand = rng(hash(spec.id));
-  const { maxRim, rimPoints } = buildTerrain(terrain, { center: top, footprint: s, bridgeAngles, rand });
+  const { maxRim, rimPoints, rimAt } = buildTerrain(terrain, { center: top, footprint: s, bridgeAngles, rand });
 
   // Rocks: a few tumbled stones sitting on the rim, mostly up on the back knolls.
   const rockCount = 3 + Math.floor(rand() * 4);
@@ -77,7 +81,7 @@ export function buildIsland(
     solid.box(sx, y + 0.015, sz, along ? 0.36 : 0.14, 0.03, along ? 0.14 : 0.36, palette.grassSpeck);
   }
 
-  const ctx = { solid, emissive, lights, islandId: spec.id, origin: top };
+  const ctx = { solid, emissive, glow, lights, islandId: spec.id, origin: top };
   for (const prop of spec.props) buildProp(ctx, prop);
 
   lights.addSplashArea(top, s);
@@ -89,5 +93,6 @@ export function buildIsland(
     size: s,
     bounds: new Box3(new Vector3(x - half, y - ISLAND_DEPTH, z - half), new Vector3(x + half, y + 6, z + half)),
     labelAnchor: top.clone().add(new Vector3(...spec.label)),
+    rimAt,
   };
 }
