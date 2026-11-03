@@ -142,7 +142,8 @@ describe('PlayerController crossing', () => {
     const sx = (end.out.x - end.out.z) / 2;
     const sy = (-end.out.x - end.out.z) / 2;
     p.setInput(Math.abs(sx) > 0.2 ? Math.sign(sx) : 0, Math.abs(sy) > 0.2 ? Math.sign(sy) : 0);
-    p.update(1 / 60);
+    // Free movement has to cover the half cell to the edge first; it should take well under a second.
+    for (let i = 0; i < 60 && p.sm.state !== 'onBridge'; i++) p.update(1 / 60);
     expect(p.sm.state).toBe('onBridge');
   });
 });

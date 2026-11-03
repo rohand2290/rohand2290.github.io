@@ -1,5 +1,6 @@
 /**
- * Held movement keys (WASD and arrows) as a screen-space vector, plus E / Enter to interact.
+ * Held movement keys (WASD and arrows) as a screen-space vector, Shift to run, Space to jump,
+ * and E / Enter to interact.
  * `capture` decides per event whether the world gets the key, so arrows on a focused nav button,
  * typing in a field, or browser shortcuts keep working as before.
  */
@@ -17,15 +18,29 @@ export interface KeyboardHooks {
   /** A movement key went down (used to interrupt auto-travel and snap the camera back). */
   onMoveKey(): void;
   onInteract(): void;
+  /** Space. */
+  onJump(): void;
 }
 
 export class Keyboard {
   private readonly held = new Map<string, [number, number]>();
+  /** Shift is down: run. Read from every key event so it can't get stuck. */
+  private shift = false;
 
   constructor(private readonly hooks: KeyboardHooks) {
-    window.addEventListener('keydown', (e) => this.down(e));
-    window.addEventListener('keyup', (e) => this.held.delete(e.key.toLowerCase()));
-    window.addEventListener('blur', () => this.held.clear());
+    window.addEventListener('keydown', (e) => {
+      this.shift = e.shiftKey;
+      this.down(e);
+    });
+    window.addEventListener('keyup', (e) => {
+      this.shift = e.shiftKey;
+      this.held.delete(e.key.toLowerCase());
+    });
+    window.addEventListener('blur', () => this.clear());
+  }
+
+  get running(): boolean {
+    return this.shift;
   }
 
   private down(e: KeyboardEvent) {
@@ -33,13 +48,18 @@ export class Keyboard {
     const key = e.key.toLowerCase();
     const dir = DIRS[key];
     const interact = key === 'e' || key === 'enter';
-    if (!dir && !interact) return;
+    const jump = key === ' ';
+    if (!dir && !interact && !jump) return;
     if (!this.hooks.capture(e)) return;
     e.preventDefault();
     if (dir) {
       if (!e.repeat) this.hooks.onMoveKey();
       this.held.set(key, dir);
-    } else if (!e.repeat) {
+    } else if (e.repeat) {
+      return;
+    } else if (jump) {
+      this.hooks.onJump();
+    } else {
       this.hooks.onInteract();
     }
   }
@@ -62,5 +82,6 @@ export class Keyboard {
 
   clear() {
     this.held.clear();
+    this.shift = false;
   }
 }

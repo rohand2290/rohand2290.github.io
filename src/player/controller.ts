@@ -13,6 +13,16 @@ export const STRIDE = 0.5;
 export const FLINCH_TIME = 0.5;
 /** A fade out and back in (Skip walking, and crossings under reduced motion). */
 export const FADE_TIME = 0.36;
+/** Holding Shift (or pushing the joystick all the way) multiplies walking speed by this. */
+export const RUN_MULT = 1.8;
+/** How quickly free movement picks up speed and bleeds it off, in world units per second². */
+export const ACCEL = 24;
+export const DECEL = 18;
+/** Jump launch speed and gravity (world units/s and /s²): a hop just under one voxel high. */
+export const JUMP_SPEED = 6.4;
+export const GRAVITY = 22;
+/** Half the character's width for free movement; each corner of this box must stand on open grass. */
+const FOOT = 0.22;
 
 export type PlayerEventOut = { type: 'footfall'; island: string; x: number; y: number; z: number };
 
@@ -29,6 +39,19 @@ export function screenToGrid(sx: number, sy: number): [number, number] {
   // sin(22.5°): beyond this a component counts, so the 8 directions split the circle evenly.
   const T = 0.3827;
   return [Math.abs(vx / len) > T ? Math.sign(vx) : 0, Math.abs(vz / len) > T ? Math.sign(vz) : 0];
+}
+
+/**
+ * Continuous version of screenToGrid for free movement: screen-space input to a world x/z
+ * direction, keeping the joystick's magnitude (capped at 1) so a light push walks slowly.
+ */
+export function screenToWorld(sx: number, sy: number): [number, number] {
+  const vx = sx - sy;
+  const vz = -sx - sy;
+  const len = Math.hypot(vx, vz);
+  if (len < 1e-6) return [0, 0];
+  const mag = Math.min(1, Math.hypot(sx, sy));
+  return [(vx / len) * mag, (vz / len) * mag];
 }
 
 interface Trip {
@@ -61,7 +84,14 @@ export class PlayerController {
   /** What the character is reading, while in the reading state. */
   reading: Interactable | null = null;
 
+  /** Height of the current jump above the ground, and its vertical speed. 0 / 0 when grounded. */
+  hop = 0;
+  private hopVel = 0;
+  /** Ground velocity (world x/z) while moving freely under held keys or the joystick. */
+  readonly vel = { x: 0, z: 0 };
+  /** Held input as a world x/z direction (magnitude 0–1). */
   private input: [number, number] = [0, 0];
+  private running = false;
   private path: Cell[] = [];
   private trip: Trip | null = null;
   private step: { from: Point3; to: Point3; target: Cell; prev: Cell; t: number; len: number } | null = null;
@@ -83,7 +113,17 @@ export class PlayerController {
   }
 
   get moving(): boolean {
-    return this.step !== null;
+    return this.step !== null || this.speed > 0.05;
+  }
+
+  /** Current free-movement ground speed. */
+  get speed(): number {
+    return Math.hypot(this.vel.x, this.vel.z);
+  }
+
+  /** Off the ground mid-jump. */
+  get airborne(): boolean {
+    return this.hop > 0 || this.hopVel > 0;
   }
 
   /** On the way somewhere (a click or a nav button), including any bridges in between. */
@@ -123,8 +163,9 @@ export class PlayerController {
   // ---------- Commands ----------
 
   /** Held movement keys or joystick, in screen space. Any input takes over from a trip. */
-  setInput(sx: number, sy: number) {
-    this.input = screenToGrid(sx, sy);
+  setInput(sx: number, sy: number, run = false) {
+    this.input = screenToWorld(sx, sy);
+    this.running = run;
     if (this.input[0] || this.input[1]) {
       if (this.trip) this.interrupt();
       this.path = [];
@@ -187,6 +228,7 @@ export class PlayerController {
     this.startFade(() => {
       this.crossing = null;
       this.step = null;
+      this.vel.x = this.vel.z = 0;
       this.cell = goal;
       Object.assign(this.pos, this.grid.center(goal));
       if (faceToward) this.facing = Math.atan2(faceToward.x - this.pos.x, faceToward.z - this.pos.z);
@@ -202,6 +244,8 @@ export class PlayerController {
     if (!this.graph || this.crossing || this.fade || !this.sm.can('enterBridge')) return false;
     this.path = [];
     this.step = null;
+    this.vel.x = this.vel.z = 0;
+    this.hop = this.hopVel = 0;
     this.sm.send('enterBridge');
     if (this.reducedMotion) {
       // Reduced motion: no tightrope walk, just a short fade to the far side.
@@ -258,6 +302,15 @@ export class PlayerController {
     this.sm.send('closeRead');
   }
 
+  /** Space: a little hop. Works standing or walking on the grass, not on bridges or mid-fade. */
+  jump(): boolean {
+    if (this.crossing || this.fade || this.airborne) return false;
+    if (this.trip) this.interrupt();
+    if (this.sm.state === 'reading') this.stopReading();
+    this.hopVel = this.reducedMotion ? JUMP_SPEED * 0.6 : JUMP_SPEED;
+    return true;
+  }
+
   /** Lightning flashed: a quick hunch, and out on a bridge one big wobble. */
   startle() {
     this.flinch = FLINCH_TIME;
@@ -281,6 +334,12 @@ export class PlayerController {
     }
     if (this.crossing) {
       this.updateCrossing(dt);
+      return;
+    }
+    this.updateHop(dt);
+    // Held keys or the joystick (or momentum left over from them): free movement off the grid.
+    if (!this.trip && (this.input[0] || this.input[1] || this.speed > 0)) {
+      this.freeMove(dt);
       return;
     }
     let budget = dt * WALK_SPEED;
@@ -341,37 +400,23 @@ export class PlayerController {
     return false;
   }
 
-  /** Picks the next cell from held input, the path, or the trip. Returns false if standing still. */
+  /** Picks the next cell from the path or the trip. Returns false if standing still. */
   private beginStep(): boolean {
-    let di = 0;
-    let dj = 0;
-    if (this.input[0] || this.input[1]) {
-      [di, dj] = this.input;
-      this.facing = Math.atan2(di, dj);
-      if (!this.grid.canStep(this.cell, di, dj)) {
-        // Walking into the edge right where a bridge starts steps out onto it.
-        const end = this.bridgeToward(di, dj);
-        if (end) this.startCrossing(end, false);
-        // Otherwise, at the island edge or against a prop, the character just stops (facing that way).
-        return false;
-      }
-    } else {
-      // Pull legs off the trip until one gives us somewhere to walk (or starts a crossing).
-      while (!this.path.length && this.trip && this.trip.legs.length && !this.crossing && !this.fade) {
-        if (this.nextLeg()) break;
-      }
-      if (!this.path.length) return false;
-      const next = this.path[0];
-      di = next.i - this.cell.i;
-      dj = next.j - this.cell.j;
-      if (Math.abs(di) > 1 || Math.abs(dj) > 1 || !this.grid.canStep(this.cell, di, dj)) {
-        this.path = [];
-        this.trip = null;
-        return false;
-      }
-      this.path.shift();
-      this.facing = Math.atan2(di, dj);
+    // Pull legs off the trip until one gives us somewhere to walk (or starts a crossing).
+    while (!this.path.length && this.trip && this.trip.legs.length && !this.crossing && !this.fade) {
+      if (this.nextLeg()) break;
     }
+    if (!this.path.length) return false;
+    const next = this.path[0];
+    const di = next.i - this.cell.i;
+    const dj = next.j - this.cell.j;
+    if (Math.abs(di) > 1 || Math.abs(dj) > 1 || !this.grid.canStep(this.cell, di, dj)) {
+      this.path = [];
+      this.trip = null;
+      return false;
+    }
+    this.path.shift();
+    this.facing = Math.atan2(di, dj);
     const target = { island: this.cell.island, i: this.cell.i + di, j: this.cell.j + dj };
     const from = { ...this.pos };
     const to = this.grid.center(target);
@@ -383,13 +428,129 @@ export class PlayerController {
     return true;
   }
 
-  private bridgeToward(di: number, dj: number): BridgeEnd | null {
+  /**
+   * A bridge leaving from near here in roughly direction (dx, dz), if any. Free movement can stand
+   * anywhere in a cell, so "at the head" means within reach of the head cell's center.
+   */
+  private bridgeToward(dx: number, dz: number): BridgeEnd | null {
     if (!this.graph) return null;
-    const len = Math.hypot(di, dj);
-    for (const end of this.graph.endsAt(this.cell)) {
-      if ((end.out.x * di + end.out.z * dj) / len > 0.6) return end;
+    const len = Math.hypot(dx, dz);
+    if (len < 1e-6) return null;
+    for (const end of this.graph.endsOn(this.cell.island)) {
+      const c = this.grid.center(end.head);
+      if (Math.hypot(c.x - this.pos.x, c.z - this.pos.z) > 0.9) continue;
+      if ((end.out.x * dx + end.out.z * dz) / len > 0.55) return end;
     }
     return null;
+  }
+
+  private updateHop(dt: number) {
+    if (!this.airborne) return;
+    this.hopVel -= GRAVITY * dt;
+    this.hop += this.hopVel * dt;
+    if (this.hop <= 0) {
+      this.hop = 0;
+      this.hopVel = 0;
+      // Landing counts as a footfall: a thud on the grass, a splash in a puddle.
+      this.events.push({ type: 'footfall', island: this.cell.island, x: this.pos.x, y: this.pos.y, z: this.pos.z });
+    }
+  }
+
+  /** Every corner of the character's foot box is on open grass of the current island. */
+  private standable(x: number, z: number): boolean {
+    for (const ox of [-FOOT, FOOT]) {
+      for (const oz of [-FOOT, FOOT]) {
+        const c = this.grid.cellAt(this.cell.island, x + ox, z + oz);
+        if (!c || !this.grid.walkable(c)) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Movement under held input: speed eases toward the target (walk or run) instead of snapping,
+   * the character slides along walls and props one axis at a time, and pushing off the island
+   * edge where a bridge starts steps out onto it.
+   */
+  private freeMove(dt: number) {
+    // A grid step in progress (from a trip that just got interrupted) carries its speed over.
+    if (this.step) {
+      const s = this.step;
+      if (s.len > 0 && this.speed === 0) {
+        this.vel.x = ((s.to.x - s.from.x) / s.len) * WALK_SPEED;
+        this.vel.z = ((s.to.z - s.from.z) / s.len) * WALK_SPEED;
+      }
+      this.step = null;
+    }
+    const [ix, iz] = this.input;
+    const hasInput = ix !== 0 || iz !== 0;
+    const max = WALK_SPEED * (this.running ? RUN_MULT : 1);
+    const tx = ix * max;
+    const tz = iz * max;
+    if (this.reducedMotion) {
+      this.vel.x = tx;
+      this.vel.z = tz;
+    } else {
+      // Less grip in the air: a jump keeps most of its momentum.
+      const grip = this.airborne ? 0.35 : 1;
+      const rate = (hasInput ? ACCEL : DECEL) * grip * dt;
+      const dx = tx - this.vel.x;
+      const dz = tz - this.vel.z;
+      const d = Math.hypot(dx, dz);
+      if (d <= rate) {
+        this.vel.x = tx;
+        this.vel.z = tz;
+      } else {
+        this.vel.x += (dx / d) * rate;
+        this.vel.z += (dz / d) * rate;
+      }
+    }
+
+    if (hasInput && !this.airborne) {
+      // Turning toward the stick, not the slide, reads as more responsive.
+      this.facing = Math.atan2(ix, iz);
+      if (this.sm.state === 'reading') this.reading = null;
+    }
+
+    const sx = this.vel.x * dt;
+    const sz = this.vel.z * dt;
+    const x0 = this.pos.x;
+    const z0 = this.pos.z;
+    let blocked = false;
+    if (sx !== 0) {
+      if (this.standable(x0 + sx, z0)) this.pos.x += sx;
+      else {
+        this.vel.x = 0;
+        blocked = true;
+      }
+    }
+    if (sz !== 0) {
+      if (this.standable(this.pos.x, z0 + sz)) this.pos.z += sz;
+      else {
+        this.vel.z = 0;
+        blocked = true;
+      }
+    }
+    const moved = Math.hypot(this.pos.x - x0, this.pos.z - z0);
+    this.cell = this.grid.cellAt(this.cell.island, this.pos.x, this.pos.z) ?? this.cell;
+    this.pos.y = this.grid.center(this.cell).y;
+
+    if (blocked && hasInput && !this.airborne) {
+      const end = this.bridgeToward(ix, iz);
+      if (end) {
+        this.cell = end.head;
+        this.startCrossing(end, false);
+        return;
+      }
+    }
+
+    if (moved > 1e-5) {
+      this.sm.send('move');
+      this.addDistance(moved);
+    } else {
+      this.vel.x = this.vel.z = 0;
+      if (this.sm.state === 'walking') this.sm.send('stop');
+    }
   }
 
   private updateCrossing(dt: number) {
@@ -421,6 +582,7 @@ export class PlayerController {
       Object.assign(this.pos, this.grid.center(end.head));
       this.crossing = null;
       this.crossingMoving = false;
+      this.vel.x = this.vel.z = 0;
       this.sm.send('exitBridge');
       // Walked back to where we started: whatever trip was planned no longer applies.
       if (done === 'near') this.trip = null;
@@ -431,19 +593,6 @@ export class PlayerController {
   /** Moves along the current step. Returns the distance budget left over. */
   private advance(budget: number): number {
     const s = this.step!;
-    // Pressing the opposite way mid-step turns around immediately rather than finishing the step.
-    const [ii, ij] = this.input;
-    const di = s.target.i - s.prev.i;
-    const dj = s.target.j - s.prev.j;
-    if ((ii || ij) && ii === -di && ij === -dj) {
-      const back = { ...s.from };
-      s.from = { ...this.pos };
-      s.to = back;
-      [s.target, s.prev] = [s.prev, s.target];
-      s.len = Math.hypot(s.to.x - s.from.x, s.to.z - s.from.z);
-      s.t = 0;
-      this.facing = Math.atan2(-di, -dj);
-    }
     const remaining = s.len * (1 - s.t);
     const move = Math.min(budget, remaining);
     s.t = s.len > 0 ? Math.min(1, s.t + move / s.len) : 1;

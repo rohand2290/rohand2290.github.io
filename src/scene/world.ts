@@ -64,6 +64,9 @@ export class World {
   private readonly updaters: ((t: number, dt: number) => boolean)[] = [];
   /** The point the camera eases toward while following the character. */
   private followTarget: Vector3 | null = null;
+  /** Look-ahead offset (world units) added to the follow target, eased so starts and stops stay smooth. */
+  private readonly lead = new Vector3();
+  private readonly leadGoal = new Vector3();
   /** Each island's float: how far it rises and falls (world units), its period (s) and phase. */
   private readonly floats: { amp: number; period: number; phase: number }[] = [];
   private readonly waterfalls: Waterfalls;
@@ -218,9 +221,13 @@ export class World {
    * Follow a moving point (the character) with gentle easing. A drag-to-pan or an island focus
    * stops following; the character's next move calls this again and the camera eases back.
    */
-  follow(p: Vector3) {
+  follow(p: Vector3, vel?: { x: number; z: number }) {
+    // Lead by about half a second of travel, capped so a sprint doesn't throw the view too far.
+    if (vel) this.leadGoal.set(vel.x, 0, vel.z).multiplyScalar(0.45).clampLength(0, 3);
+    else this.leadGoal.set(0, 0, 0);
     if (!this.followTarget) {
       this.followTarget = new Vector3();
+      this.lead.set(0, 0, 0);
       // The first time the character moves, zoom in a little from the overview so it reads clearly.
       if (!this.hasFollowed) {
         this.hasFollowed = true;
@@ -233,6 +240,7 @@ export class World {
 
   stopFollowing() {
     this.followTarget = null;
+    this.leadGoal.set(0, 0, 0);
   }
 
   get following(): boolean {
@@ -240,8 +248,12 @@ export class World {
   }
 
   private updateFollow(dt: number) {
-    const p = this.followTarget;
-    if (!p) return;
+    const target = this.followTarget;
+    if (!target) return;
+    // The look-ahead eases on its own, slower than the camera, so it never jerks when you turn.
+    this.lead.lerp(this.leadGoal, this.reduced ? 1 : 1 - Math.exp(-dt * 2.5));
+    if (!this.reduced) this.leadGoal.multiplyScalar(Math.exp(-dt * 3)); // fades once you stop
+    const p = target.clone().add(this.reduced ? this.leadGoal.set(0, 0, 0) : this.lead);
     const r = this.opts.freeRect(false);
     const [tx, ty] = this.iso.viewFor(p.dot(ISO_RIGHT), p.dot(ISO_UP), (r.left + r.right) / 2, (r.top + r.bottom) / 2, this.iso.scale);
     // Exponential ease: quick to start, settles softly. Reduced motion snaps.
@@ -250,7 +262,7 @@ export class World {
     this.iso.cy += (ty - this.iso.cy) * k;
     this.iso.clamp();
     this.iso.apply();
-    this.focusOn(this.iso.toScreen(p).y);
+    this.focusOn(this.iso.toScreen(target).y);
   }
 
   /** Runs every frame before drawing. Return true if anything changed (forces a redraw under reduced motion). */

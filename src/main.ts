@@ -256,13 +256,17 @@ const keyboard = new Keyboard({
   capture(e) {
     if (!player || panel.open) return false;
     const active = document.activeElement;
-    if (e.key === 'Enter') return isWorldFocus(active);
+    // Enter and Space keep clicking a focused button; with focus on the world they interact / jump.
+    if (e.key === 'Enter' || e.key === ' ') return isWorldFocus(active);
     if (e.key.startsWith('Arrow')) return isWorldFocus(active) || active?.id === 'note-title';
     // Letters: anywhere except text fields.
     return !(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active as HTMLElement | null)?.isContentEditable);
   },
   onMoveKey() {},
   onInteract: interact,
+  onJump() {
+    if (player?.jump()) sound.play('jump');
+  },
 });
 
 window.addEventListener(
@@ -414,8 +418,13 @@ async function boot() {
   const { Player } = await import('./player/view');
   world.addUpdater(() => {
     let [sx, sy] = keyboard.vector();
-    if (!sx && !sy) [sx, sy] = joystick.vector();
-    player?.setInput(sx, sy);
+    let run = keyboard.running;
+    if (!sx && !sy) {
+      [sx, sy] = joystick.vector();
+      // On touch, pushing the stick near its rim runs.
+      run = Math.hypot(sx, sy) > 0.92;
+    }
+    player?.setInput(sx, sy, run);
     return false;
   });
   player = new Player(world, worldSpec, state.reduced);

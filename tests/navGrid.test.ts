@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { IslandSpec } from '../src/content/types';
 import { NavGrid } from '../src/world/navGrid';
 import { findGridPath } from '../src/world/pathfinding';
-import { PlayerController } from '../src/player/controller';
+import { PlayerController, WALK_SPEED } from '../src/player/controller';
 
 const island = (props: IslandSpec['props'] = []): IslandSpec => ({
   id: 'test', name: 'Test', resumeSection: '', position: [10, 2, -4], footprint: 6, label: [0, 0, 0], props,
@@ -48,33 +48,64 @@ describe('NavGrid', () => {
   });
 });
 
-describe('PlayerController on the grid', () => {
-  it('walks until the island edge, then stops there', () => {
+describe('PlayerController free movement', () => {
+  it('walks to the island edge, slides along it into the corner, then stops there', () => {
     const g = new NavGrid([island()]);
     const p = new PlayerController(g, { island: 'test', i: 2, j: 2 });
     // Screen left = world (-x, +z): hold it for a long time.
     p.setInput(-1, 0);
     for (let k = 0; k < 200; k++) p.update(1 / 60);
-    // (2,2) → (1,3) → (0,4), then the next diagonal step would leave the island.
-    expect(p.cell).toEqual({ island: 'test', i: 0, j: 4 });
+    expect(p.cell).toEqual({ island: 'test', i: 0, j: 5 });
     expect(p.moving).toBe(false);
     expect(p.sm.state).toBe('idle');
-    // Still on the island.
     expect(g.cellAt('test', p.pos.x, p.pos.z)).not.toBeNull();
   });
 
-  it('moves smoothly between cell centers and snaps to them', () => {
-    const g = new NavGrid([island()]);
-    const p = new PlayerController(g, { island: 'test', i: 2, j: 2 });
-    p.setInput(0, 1); // screen up = world (-1, -1)
-    p.update(0.1);
-    expect(p.moving).toBe(true);
-    expect(p.pos.x).toBeLessThan(10 - 0.5 + 0.0001);
-    expect(p.pos.x).toBeGreaterThan(8.5);
+  it('speeds up gradually, runs faster with Shift, and glides to a stop', () => {
+    const g = new NavGrid([{ ...island(), footprint: 20 }]);
+    const p = new PlayerController(g, { island: 'test', i: 10, j: 19 });
+    p.setInput(1, 1); // up-right = world -z, along a grid axis
+    p.update(1 / 60);
+    expect(p.speed).toBeGreaterThan(0);
+    expect(p.speed).toBeLessThan(WALK_SPEED);
+    for (let k = 0; k < 20; k++) p.update(1 / 60);
+    expect(p.speed).toBeCloseTo(WALK_SPEED, 5);
+    p.setInput(1, 1, true);
+    for (let k = 0; k < 20; k++) p.update(1 / 60);
+    expect(p.speed).toBeGreaterThan(WALK_SPEED * 1.5);
+    // Let go: it keeps sliding a little, then stops off the cell centers (no snapping).
     p.setInput(0, 0);
-    for (let k = 0; k < 30; k++) p.update(1 / 60);
+    const z = p.pos.z;
+    p.update(1 / 60);
+    expect(p.moving).toBe(true);
+    expect(p.pos.z).toBeLessThan(z);
+    for (let k = 0; k < 60; k++) p.update(1 / 60);
     expect(p.moving).toBe(false);
-    expect(p.pos).toEqual(g.center(p.cell));
+    expect(p.sm.state).toBe('idle');
+  });
+
+  it('jumps and lands, but not twice in the air', () => {
+    const g = new NavGrid([island()]);
+    const p = new PlayerController(g, { island: 'test', i: 3, j: 3 });
+    expect(p.jump()).toBe(true);
+    p.update(0.1);
+    expect(p.hop).toBeGreaterThan(0.3);
+    expect(p.jump()).toBe(false);
+    for (let k = 0; k < 60; k++) p.update(1 / 60);
+    expect(p.hop).toBe(0);
+    expect(p.airborne).toBe(false);
+    expect(p.drainEvents().some((e) => e.type === 'footfall')).toBe(true);
+  });
+
+  it('slides around a prop instead of walking through it', () => {
+    const g = new NavGrid([island([{ type: 'terminal', at: [0, 0] }])]);
+    const p = new PlayerController(g, { island: 'test', i: 3, j: 5 });
+    p.setInput(1, 1); // world -z, straight at the terminal
+    for (let k = 0; k < 120; k++) {
+      p.update(1 / 60);
+      const c = g.cellAt('test', p.pos.x, p.pos.z)!;
+      expect(g.walkable(c)).toBe(true);
+    }
   });
 });
 

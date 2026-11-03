@@ -15,6 +15,7 @@ export type Cue =
   | 'stepPuddle'
   | 'stepPlank'
   | 'whoosh'
+  | 'jump'
   | 'click'
   | 'soundOn';
 
@@ -26,7 +27,7 @@ export type Cue =
 const CUE_FILES: Partial<Record<Cue, string>> = {};
 
 /** Minimum gap between repeats of the same cue, in seconds (stops stacking on rapid input). */
-const CUE_GAP: Partial<Record<Cue, number>> = { click: 0.04, notePick: 0.06, whoosh: 0.3 };
+const CUE_GAP: Partial<Record<Cue, number>> = { click: 0.04, notePick: 0.06, whoosh: 0.3, jump: 0.15 };
 
 function readPref(): boolean {
   try {
@@ -197,6 +198,10 @@ export class Sound {
       }
       case 'whoosh':
         this.sweep(now, 0.7, 300, 1800, 0.12, 1.2, 0.3);
+        break;
+      case 'jump':
+        // A quick airy lift: short rising noise sweep.
+        this.sweep(now, 0.18, 500, 2200, 0.06, 1.4, 0.35);
         break;
       case 'click':
         this.chime(now, 1567.98, 0.08, 0.025);

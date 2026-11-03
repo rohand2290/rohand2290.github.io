@@ -70,8 +70,13 @@ export class Player {
     return new Vector3(p.x, p.y + 1, p.z);
   }
 
-  setInput(sx: number, sy: number) {
-    this.controller.setInput(sx, sy);
+  setInput(sx: number, sy: number, run = false) {
+    this.controller.setInput(sx, sy, run);
+  }
+
+  /** Space. */
+  jump(): boolean {
+    return this.controller.jump();
   }
 
   walkTo(cell: Cell, onArrive?: () => void): boolean {
@@ -127,7 +132,7 @@ export class Player {
 
   private update(t: number, dt: number): boolean {
     const c = this.controller;
-    const wasMoving = c.moving || c.crossingMoving;
+    const wasMoving = c.moving || c.crossingMoving || c.airborne;
     c.update(dt);
     for (const e of this.controller.drainEvents()) {
       if (e.type !== 'footfall') continue;
@@ -142,8 +147,9 @@ export class Player {
         ? { bridge: c.crossing.from.bridge, t: bt, depth: DIP_DEPTH[c.crossing.weight - 1] }
         : null;
     this.sync(t, dt);
-    const moving = c.moving || c.crossingMoving;
-    if (moving) this.world.follow(this.focusPoint);
+    const moving = c.moving || c.crossingMoving || c.airborne;
+    // The camera leads a little in the direction of travel, so you see where you're going.
+    if (moving) this.world.follow(this.focusPoint, c.vel);
     // Under reduced motion the world only redraws when something changes (a fade counts,
     // including the frame where it clears).
     const fade = c.fadeLevel;
@@ -157,7 +163,7 @@ export class Player {
     // Keep the feet on the planks as they dip.
     const bt = c.bridgeT;
     const dip = bt !== null && c.crossing ? this.world.bridgeDip.offsetAt(c.crossing.from.bridge, bt) : 0;
-    this.model.root.position.set(c.pos.x, c.pos.y - dip, c.pos.z);
+    this.model.root.position.set(c.pos.x, c.pos.y - dip + c.hop, c.pos.z);
 
     // Turn smoothly toward the walking direction (instantly under reduced motion).
     let diff = c.facing - this.shownYaw;
