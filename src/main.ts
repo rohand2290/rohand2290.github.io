@@ -115,6 +115,14 @@ initHeader(sound, (mode) => {
   syncLightning();
 });
 
+// A soft cursor tick as the mouse moves onto any control.
+document.addEventListener('pointerover', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  const control = (e.target as Element).closest('button, a.btn');
+  const from = (e.relatedTarget as Element | null)?.closest?.('button, a.btn');
+  if (control && control !== from) sound.play('hover');
+});
+
 function syncLightning() {
   lightning.setEnabled(!!world && state.weather === 'storm' && !state.reduced);
 }
@@ -297,6 +305,7 @@ window.addEventListener('keydown', (e) => {
     openIsland(next);
     nav.focus(next);
   } else {
+    sound.play('hover');
     nav.focus(next);
     setHover(next);
     world?.focusIsland(next, false);
@@ -396,6 +405,7 @@ function goToIsland(id: string, viaKeyboard: boolean) {
   const sign = player?.sign(id);
   if (!player || !sign || viaKeyboard) return openIsland(id, viaKeyboard);
   if (note.open) closeNote();
+  else sound.play('click');
   nav.setActive(id);
   const island = islandById(id);
   if (state.skipWalking) {

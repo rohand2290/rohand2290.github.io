@@ -27,6 +27,9 @@ Drop a `public/resume.pdf` in and the resume page grows a "Download PDF" button 
 Thunder and rain are synthesized with Web Audio by default. To use recordings instead, add
 `public/audio/thunder-1.ogg`, `thunder-2.ogg` and `rain-loop.ogg`, and they're picked up automatically.
 
+Interface cues are synthesized too: each is a short tick plus FM plucks in D major, with a small
+room reverb and a limiter. Opening cues rise and closing cues fall. Tune them in `play()` in `src/weather/audio.ts`.
+
 ## Layout
 
 ```
